@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Edit spot{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Edit spot</h1>
+  <p class="subtitle">Update the directory entry for {{ spot.name }}.</p>
+</div>
+
+<section class="card">
+  <form method="post" action="{{ url_for('spot_edit_page', spot_id=spot.id) }}" class="form-grid">
+    <div class="field">
+      <label for="name">Name *</label>
+      <input id="name" name="name" type="text" maxlength="100" required
+             value="{{ form.get('name', '') }}">
+      {% if errors.get('name') %}<p class="field-error">{{ errors.name }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="location">Location *</label>
+      <input id="location" name="location" type="text" maxlength="150" required
+             value="{{ form.get('location', '') }}">
+      {% if errors.get('location') %}<p class="field-error">{{ errors.location }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="ideal_wind_dir">Ideal wind direction</label>
+      <input id="ideal_wind_dir" name="ideal_wind_dir" type="text" maxlength="60"
+             value="{{ form.get('ideal_wind_dir', '') }}">
+      {% if errors.get('ideal_wind_dir') %}<p class="field-error">{{ errors.ideal_wind_dir }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="ideal_swell_ft">Ideal swell (ft)</label>
+      <input id="ideal_swell_ft" name="ideal_swell_ft" type="number" step="0.5" min="0"
+             value="{{ form.get('ideal_swell_ft', '') }}">
+      {% if errors.get('ideal_swell_ft') %}<p class="field-error">{{ errors.ideal_swell_ft }}</p>{% endif %}
+    </div>
+    <div class="field field-wide actions-row">
+      <button class="btn" type="submit">Save changes</button>
+      <a class="btn btn-secondary" href="{{ url_for('spot_detail_page', spot_id=spot.id) }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

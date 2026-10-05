@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Edit session{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Edit session</h1>
+  <p class="subtitle">{{ session_row.date }} · {{ session_row.spot_name }}</p>
+</div>
+
+<section class="card">
+  <form method="post" action="{{ url_for('session_edit_page', session_id=session_row.id) }}" class="form-grid">
+    <div class="field">
+      <label for="spot_id">Spot *</label>
+      <select id="spot_id" name="spot_id" required>
+        {% for s in spots %}
+        <option value="{{ s.id }}" {% if form.get('spot_id', '')|string == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.get('spot_id') %}<p class="field-error">{{ errors.spot_id }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="date">Date *</label>
+      <input id="date" name="date" type="date" value="{{ form.get('date', '') }}" required>
+      {% if errors.get('date') %}<p class="field-error">{{ errors.date }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="duration_mins">Duration (min) *</label>
+      <input id="duration_mins" name="duration_mins" type="number" min="1" step="1"
+             value="{{ form.get('duration_mins', '') }}" required>
+      {% if errors.get('duration_mins') %}<p class="field-error">{{ errors.duration_mins }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="wave_or_wind_rating">Rating *</label>
+      <select id="wave_or_wind_rating" name="wave_or_wind_rating" required>
+        {% for r in range(1, 6) %}
+        <option value="{{ r }}" {% if form.get('wave_or_wind_rating', '')|string == r|string %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.get('wave_or_wind_rating') %}<p class="field-error">{{ errors.wave_or_wind_rating }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="gear_used">Gear</label>
+      <input id="gear_used" name="gear_used" type="text" maxlength="120"
+             value="{{ form.get('gear_used', '') }}">
+      {% if errors.get('gear_used') %}<p class="field-error">{{ errors.gear_used }}</p>{% endif %}
+    </div>
+    <div class="field field-wide">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" rows="2" maxlength="2000">{{ form.get('notes', '') }}</textarea>
+      {% if errors.get('notes') %}<p class="field-error">{{ errors.notes }}</p>{% endif %}
+    </div>
+    <div class="field field-wide actions-row">
+      <button class="btn" type="submit">Save changes</button>
+      <a class="btn btn-secondary" href="{{ url_for('sessions_page') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

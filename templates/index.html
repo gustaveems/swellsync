@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import session_table %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Water time, logged.</h1>
+    <p class="hero-sub">Your surf &amp; sail sessions, the spots you love, and the conditions that made them great.</p>
+    <div class="cta-row">
+      <a class="btn" href="{{ url_for('sessions_page') }}#log-session">Log a session</a>
+      <a class="btn btn-secondary" href="{{ url_for('spots_page') }}#add-spot">Add a spot</a>
+    </div>
+  </div>
+</section>
+
+<section class="stat-grid">
+  <div class="stat-card">
+    <span class="stat-value">{{ spots|length }}</span>
+    <span class="stat-label">spots in the directory</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ overall.session_count }}</span>
+    <span class="stat-label">sessions logged</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ "%.1f"|format(overall.total_duration_mins / 60) }}h</span>
+    <span class="stat-label">total water time</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{{ "%.1f"|format(overall.average_rating) if overall.average_rating is not none else "—" }}</span>
+    <span class="stat-label">average rating</span>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Recent sessions</h2>
+    <a class="btn btn-secondary btn-small" href="{{ url_for('sessions_page') }}">All sessions →</a>
+  </div>
+  {{ session_table(recent_sessions, show_spot=true) }}
+</section>
+{% endblock %}

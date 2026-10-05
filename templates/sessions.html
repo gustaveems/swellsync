@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import session_table %}
+{% block title %}Sessions{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Session log</h1>
+  <p class="subtitle">Every session, the gear you rode, and how good it was — newest first.</p>
+</div>
+
+<section class="card" id="log-session">
+  <h2>Log a session</h2>
+  {% if not spots %}
+  <p class="muted">Heads up — add a spot in the <a href="{{ url_for('spots_page') }}">Spot directory</a> first; sessions hang off spots.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('sessions_page') }}" class="form-grid">
+    <div class="field">
+      <label for="spot_id">Spot *</label>
+      <select id="spot_id" name="spot_id" required>
+        <option value="">— choose —</option>
+        {% for s in spots %}
+        <option value="{{ s.id }}" {% if form.get('spot_id', '')|string == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.get('spot_id') %}<p class="field-error">{{ errors.spot_id }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="date">Date *</label>
+      <input id="date" name="date" type="date" value="{{ form.get('date', today) }}" required>
+      {% if errors.get('date') %}<p class="field-error">{{ errors.date }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="duration_mins">Duration (min) *</label>
+      <input id="duration_mins" name="duration_mins" type="number" min="1" step="1"
+             placeholder="90" value="{{ form.get('duration_mins', '') }}" required>
+      {% if errors.get('duration_mins') %}<p class="field-error">{{ errors.duration_mins }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="wave_or_wind_rating">Rating *</label>
+      <select id="wave_or_wind_rating" name="wave_or_wind_rating" required>
+        {% for r in range(1, 6) %}
+        <option value="{{ r }}" {% if form.get('wave_or_wind_rating', '')|string == r|string %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.get('wave_or_wind_rating') %}<p class="field-error">{{ errors.wave_or_wind_rating }}</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="gear_used">Gear</label>
+      <input id="gear_used" name="gear_used" type="text" maxlength="120"
+             placeholder="6'2 Shortboard / Laser" value="{{ form.get('gear_used', '') }}">
+      {% if errors.get('gear_used') %}<p class="field-error">{{ errors.gear_used }}</p>{% endif %}
+    </div>
+    <div class="field field-wide">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" rows="2" maxlength="2000"
+                placeholder="Conditions, crowd, highlights…">{{ form.get('notes', '') }}</textarea>
+      {% if errors.get('notes') %}<p class="field-error">{{ errors.notes }}</p>{% endif %}
+    </div>
+    <div class="field field-wide">
+      <button class="btn" type="submit">Log session</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>All sessions</h2>
+    <form method="get" action="{{ url_for('sessions_page') }}" class="filter-form">
+      <label class="muted" for="filter-spot">Filter by spot</label>
+      <select id="filter-spot" name="spot" onchange="this.form.submit()">
+        <option value="">All spots</option>
+        {% for s in spots %}
+        <option value="{{ s.id }}" {% if spot_filter == s.id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  {{ session_table(sessions, show_spot=true) }}
+</section>
+{% endblock %}

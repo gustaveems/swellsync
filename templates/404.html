@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Not found{% endblock %}
+{% block content %}
+<section class="card empty-card">
+  <h1>404 — wave not found 🏄</h1>
+  <p>The page you're looking for drifted away with the tide.</p>
+  <p><a class="btn" href="{{ url_for('dashboard') }}">Back to the dashboard</a></p>
+</section>
+{% endblock %}

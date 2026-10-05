@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import session_table, duration %}
+{% block title %}{{ spot.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ spot.name }}</h1>
+    <p class="subtitle">{{ spot.location }}</p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn btn-secondary btn-small" href="{{ url_for('spot_edit_page', spot_id=spot.id) }}">Edit spot</a>
+    <form class="inline-form" method="post" action="{{ url_for('spot_delete_page', spot_id=spot.id) }}"
+          onsubmit="return confirm('Delete this spot? Not possible while sessions are logged here.')">
+      <button class="btn btn-small btn-danger" type="submit">Delete spot</button>
+    </form>
+  </div>
+</div>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Ideal conditions</h2>
+    <dl class="spec-list">
+      <div><dt>Wind</dt><dd>{{ spot.ideal_wind_dir or "—" }}</dd></div>
+      <div><dt>Swell</dt><dd>{{ (("%.1f"|format(spot.ideal_swell_ft)) ~ " ft") if spot.ideal_swell_ft is not none else "—" }}</dd></div>
+      <div><dt>Added</dt><dd>{{ spot.created_at }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Session stats</h2>
+    {% if stats.session_count %}
+    <dl class="spec-list">
+      <div><dt>Sessions</dt><dd>{{ stats.session_count }}</dd></div>
+      <div><dt>Total water time</dt><dd>{{ duration(stats.total_duration_mins) }}</dd></div>
+      <div><dt>Avg duration</dt><dd>{{ duration(stats.average_duration_mins|round|int) }}</dd></div>
+      <div><dt>Avg rating</dt><dd>{{ "%.1f"|format(stats.average_rating) }}</dd></div>
+    </dl>
+    {% else %}
+    <p class="muted">No sessions here yet — the stats will flow once you log one.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <h2>Epic sessions <span class="badge">rating ≥ 4</span></h2>
+  {% if ideal_sessions %}
+    {{ session_table(ideal_sessions, show_spot=false) }}
+  {% else %}
+    <p class="muted">Nothing rated 4+ here yet.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>All sessions at this spot</h2>
+  {{ session_table(sessions, show_spot=false) }}
+</section>
+
+<section class="card">
+  <h2>Quick log at {{ spot.name }}</h2>
+  <form method="post" action="{{ url_for('sessions_page') }}" class="form-grid">
+    <input type="hidden" name="spot_id" value="{{ spot.id }}">
+    <div class="field">
+      <label for="ql-date">Date *</label>
+      <input id="ql-date" type="date" name="date" value="{{ today }}" required>
+    </div>
+    <div class="field">
+      <label for="ql-duration">Duration (min) *</label>
+      <input id="ql-duration" type="number" name="duration_mins" min="1" step="1" placeholder="90" required>
+    </div>
+    <div class="field">
+      <label for="ql-rating">Rating *</label>
+      <select id="ql-rating" name="wave_or_wind_rating" required>
+        {% for r in range(1, 6) %}
+        <option value="{{ r }}" {% if r == 4 %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="ql-gear">Gear</label>
+      <input id="ql-gear" type="text" name="gear_used" maxlength="120" placeholder="6'2 Shortboard">
+    </div>
+    <div class="field field-wide">
+      <label for="ql-notes">Notes</label>
+      <textarea id="ql-notes" name="notes" rows="2" maxlength="2000" placeholder="Offshore, empty lineup…"></textarea>
+    </div>
+    <div class="field field-wide">
+      <button class="btn" type="submit">Log it</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

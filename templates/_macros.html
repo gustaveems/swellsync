@@ -1,0 +1,58 @@
+{# Shared display macros: rating stars, durations, session tables. #}
+
+{% macro rating_stars(rating) -%}
+  {%- if rating -%}
+    <span class="stars" title="{{ rating }} of 5">
+      {%- for i in range(1, 6) -%}{{ "★" if i <= rating else "☆" }}{%- endfor -%}
+    </span>
+  {%- else -%}<span class="muted">—</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro duration(mins) -%}
+  {%- if mins is not none -%}
+    {%- if mins >= 60 -%}{{ mins // 60 }}h {{ "%02d"|format(mins % 60) }}m{%- else -%}{{ mins }}m{%- endif -%}
+  {%- else -%}—{%- endif -%}
+{%- endmacro %}
+
+{% macro session_table(sessions, show_spot=true) %}
+<div class="table-wrap">
+<table class="table">
+  <thead>
+    <tr>
+      <th>Date</th>
+      {% if show_spot %}<th>Spot</th>{% endif %}
+      <th>Duration</th>
+      <th>Rating</th>
+      <th>Gear</th>
+      <th>Notes</th>
+      <th class="th-actions">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for s in sessions %}
+    <tr>
+      <td class="nowrap">{{ s.date }}</td>
+      {% if show_spot %}
+        <td><a class="spot-link" href="{{ url_for('spot_detail_page', spot_id=s.spot_id) }}">{{ s.spot_name or "unknown" }}</a></td>
+      {% endif %}
+      <td>{{ duration(s.duration_mins) }}</td>
+      <td>{{ rating_stars(s.wave_or_wind_rating) }}</td>
+      <td>{{ s.gear_used or "—" }}</td>
+      <td class="notes-cell">{{ (s.notes or "—")[:80] }}</td>
+      <td class="actions-cell">
+        <a class="btn btn-tiny" href="{{ url_for('session_edit_page', session_id=s.id) }}">Edit</a>
+        <form class="inline-form" method="post"
+              action="{{ url_for('session_delete_page', session_id=s.id) }}"
+              onsubmit="return confirm('Delete this session?')">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="empty-row">No sessions logged yet — go get wet. 🤙</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endmacro %}
