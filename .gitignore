@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+
+# Virtualenv
+.venv/
+
+# Local SQLite data
+data/
