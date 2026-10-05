@@ -269,6 +269,14 @@ class TestValidateSessionData:
         assert domain_logic.validate_session_data(
             self.valid_payload(date="2024-02-29")) == {}
 
+    def test_non_string_date_is_rejected(self):
+        errors = domain_logic.validate_session_data(self.valid_payload(date=None))
+        assert "date" in errors
+
+    def test_non_string_optional_fields_are_tolerated(self):
+        payload = self.valid_payload(gear_used=4113, notes=7)
+        assert domain_logic.validate_session_data(payload) == {}
+
     def test_optional_fields_have_length_caps(self):
         assert "gear_used" in domain_logic.validate_session_data(
             self.valid_payload(gear_used="x" * 121))
@@ -308,6 +316,18 @@ class TestValidateSpotData:
         errors = domain_logic.validate_spot_data(
             self.valid_payload(name="   ", location=""))
         assert set(errors) == {"name", "location"}
+
+    def test_spot_field_length_caps(self):
+        errors = domain_logic.validate_spot_data(
+            self.valid_payload(
+                name="x" * 101, location="y" * 151, ideal_wind_dir="z" * 61
+            )
+        )
+        assert set(errors) == {"name", "location", "ideal_wind_dir"}
+
+    def test_boolean_swell_is_rejected(self):
+        assert "ideal_swell_ft" in domain_logic.validate_spot_data(
+            self.valid_payload(ideal_swell_ft=True))
 
     def test_swell_must_be_a_non_negative_number(self):
         assert "ideal_swell_ft" in domain_logic.validate_spot_data(
