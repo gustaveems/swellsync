@@ -1,17 +1,17 @@
 # AI Usage Log — SwellSync
 
 > **Read this first.** This log records every substantive AI interaction on
-> the project, as required by the course syllabus. The final column ("In my
-> own words…") is the student's own writing; the assistant's edits to it
-> were limited to spelling and grammar. Commit hashes reference this
-> repository's history (`git log --oneline`).
+> the project, as required by the course syllabus. In the final column ("In
+> my words…"), rows 1–5 are the student's own writing (assistant edits
+> limited to spelling and grammar); row 6 is pending the student's rewrite.
+> Commit hashes reference this repository's history (`git log --oneline`).
 
 | | |
 |---|---|
 | **Project** | SwellSync — Surf & Sail Session Logger (Assignment 1) |
 | **AI tool** | Qwen Code — terminal-based coding agent |
-| **Interaction dates** | 2026-10-05 · one working session · 5 logged interactions |
-| **Verified results** | 58/58 pytest tests passing · `domain_logic.py` line coverage **100%** (requirement: ≥ 70%) · live HTTP smoke test on `0.0.0.0:$PORT` |
+| **Interaction dates** | 2026-10-05 → 2026-10-06 · 6 logged interactions · remediation ongoing |
+| **Verified results** | 60/60 pytest tests passing · `domain_logic.py` line coverage **100%** (requirement: ≥ 70%) · live HTTP smoke test on `0.0.0.0:$PORT` · `/healthz` liveness probe |
 
 | Date/commit | Tool | Prompt | Disposition | What changed & why | In my own words, how this works |
 |---|---|---|---|---|---|
@@ -20,6 +20,7 @@
 | 2026-10-05 / e709981 | Qwen Code | "Add the UI: Jinja2 templates for dashboard, spots, sessions, edit pages; keep it one static stylesheet, no build step." | Accepted, pending review | Generated `templates/` (base layout, shared macros, dashboard, spot list/detail/edit, session list/edit, 404) and `static/css/style.css`. Deletes are POST-only with confirm dialogs; no JavaScript is generated from user data. | There is nothing to build — no npm or bundler. Every page extends a base template, so everything else is styled and defined exactly once. There's also a macro file that renders the stars and the duration format, so that every session table is identical, and the actual stylesheet is served by Flask. |
 | 2026-10-05 / 7467bb9 | Qwen Code | "Produce the process documents: ADR.md with exactly 5 entries, the AI_USAGE.md table, and README.md with env vars, run command, and the exact coverage command." | Accepted, pending review | Generated `ADR.md` (framework choice, domain seam, SQLite schema, testing strategy, deliberately omitted weather API), this log, and `README.md` including the required command `pytest --cov=domain_logic test_app.py`. | I'm writing the ADR because it's the assignment's requirement; beyond that, I'm not sure. |
 | 2026-10-05 / 7ebf90c | Qwen Code | "Verify everything: create a venv, install requirements, run the coverage command, and boot the server on 0.0.0.0 to smoke-test the pages." | Accepted, pending review | Executed the full suite — 58 passed, `domain_logic` coverage 100%, up from 95% after adding gap-closing validation tests — and a live HTTP smoke test: pages 200, custom 404 on unknown routes, create-form 302 with the row persisted. | I've had previous experiences where the tests ran and were perfect, but on the launch of the server new errors appeared, or something simply did not work or did not show up. |
+| 2026-10-06 / 08e47ef, bb7e874, a56baf3 | Qwen Code | "Check the Assignment 2 code evaluation plan on the Desktop and make sure SwellSync works in compliance with it" — then "commit roughly one thing per day; brainstorm refinements first" and "go ahead". | In progress (multi-day remediation) | Audited the repository against the evaluation plan: every technical and deliverable item passes; commit cadence and the formal report are the gaps. Embedded the measured coverage output in the README, added a `/healthz` liveness endpoint with tests, and documented the localhost port-collision the user hit live. Daily remediation continues until the cadence requirement is met. | (Pending the student's own words.) |
 
 ---
 
