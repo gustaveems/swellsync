@@ -55,6 +55,17 @@ The exact coverage command required by the assignment:
 pytest --cov=domain_logic test_app.py
 ```
 
+Measured output from the committed tree (2026-10-06):
+
+```text
+58 passed in 0.83s
+---------- coverage: platform darwin, python 3.9.6 ----------
+Name              Stmts   Miss  Cover
+-------------------------------------
+domain_logic.py     121      0   100%
+-------------------------------------
+```
+
 `domain_logic.py` is pure Python (no Flask, no SQL), and the suite exercises
 all of its branches, so measured business-logic coverage is **100%** — well
 above the required 70%. A plain run without coverage:
