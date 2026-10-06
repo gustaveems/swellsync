@@ -38,6 +38,23 @@ python app.py
 Then open **http://localhost:8000**. The app binds to `0.0.0.0`, so it is
 reachable from other machines on your LAN at `http://<your-ip>:$PORT`.
 
+## Troubleshooting
+
+**Port 8000 is taken / you see JSON instead of the dashboard.** Another
+local service may be listening on `127.0.0.1:8000` — on macOS a
+loopback-specific listener answers every `localhost` request even when
+SwellSync binds the wildcard `0.0.0.0:8000`. Find the holder and either
+stop it or move SwellSync to a free port:
+
+```bash
+lsof -nP -iTCP:8000 -sTCP:LISTEN   # who holds the port
+PORT=8001 python app.py            # run on another port instead
+```
+
+**Starting over with an empty log.** Stop the app, delete
+`$DATA_DIR/swellsync.db` (default `./data/swellsync.db`), and restart —
+the schema is recreated automatically on boot.
+
 ## Environment variables
 
 | Variable | Default | Purpose |
@@ -58,7 +75,7 @@ pytest --cov=domain_logic test_app.py
 Measured output from the committed tree (2026-10-06):
 
 ```text
-58 passed in 0.83s
+60 passed in 1.00s
 ---------- coverage: platform darwin, python 3.9.6 ----------
 Name              Stmts   Miss  Cover
 -------------------------------------
