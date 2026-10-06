@@ -166,6 +166,19 @@ def create_app(data_dir: str | None = None) -> Flask:
     init_db(Path(app.config["DB_PATH"]))
     app.teardown_appcontext(close_db)
 
+    # -- Infrastructure: deployment liveness probe (no domain logic) --------
+
+    @app.route("/healthz")
+    def healthz():
+        db = get_db()
+        db.execute("SELECT 1").fetchone()
+        return {
+            "status": "ok",
+            "database": "ok",
+            "spots": db.execute("SELECT COUNT(*) AS c FROM spots").fetchone()["c"],
+            "sessions": db.execute("SELECT COUNT(*) AS c FROM sessions").fetchone()["c"],
+        }
+
     # -- 4. Composition views (read across the domain seam) ------------------
 
     @app.route("/")

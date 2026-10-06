@@ -587,3 +587,24 @@ class TestViewsAndStats:
         response = client.get("/no/such/page")
         assert response.status_code == 404
         assert b"drifted" in response.data
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure: /healthz deployment liveness probe
+# ---------------------------------------------------------------------------
+
+class TestHealthEndpoint:
+    def test_healthz_reports_ok(self, client):
+        response = client.get("/healthz")
+        assert response.status_code == 200
+        assert response.is_json
+        data = response.get_json()
+        assert data["status"] == "ok"
+        assert data["database"] == "ok"
+
+    def test_healthz_counts_entities(self, client):
+        add_spot(client)
+        add_session(client, spot_id=1)
+        data = client.get("/healthz").get_json()
+        assert data["spots"] == 1
+        assert data["sessions"] == 1
