@@ -10,9 +10,14 @@ deliberately free of external services.
   direction and ideal swell height.
 * **Session Tracker (Domain 2)** — full CRUD log of water sessions: date,
   duration, 1–5 rating, gear, notes, always attached to a spot.
+  Future-dated entries are rejected — the log records what already happened.
 * **Cross-domain stats** — per-spot and global totals/averages computed by
   pure functions in `domain_logic.py`.
-* **Epic-sessions filter** — quality view of sessions rated ≥ 4.
+* **Epic-sessions filter** — quality view of sessions rated ≥ 4, filterable
+  on the sessions page ("Epic only").
+* **Rating distribution** — 1–5 star-count bars on every spot page.
+* **Health probe** — `GET /healthz` returns live status, DB check, and
+  entity counts.
 
 ## Tech stack
 
@@ -72,14 +77,14 @@ The exact coverage command required by the assignment:
 pytest --cov=domain_logic test_app.py
 ```
 
-Measured output from the committed tree (2026-10-06):
+Measured output from the committed tree (2026-10-07):
 
 ```text
-60 passed in 1.00s
+70 passed in 1.20s
 ---------- coverage: platform darwin, python 3.9.6 ----------
 Name              Stmts   Miss  Cover
 -------------------------------------
-domain_logic.py     121      0   100%
+domain_logic.py     130      0   100%
 -------------------------------------
 ```
 
