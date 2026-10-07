@@ -35,6 +35,16 @@
       <div><dt>Avg duration</dt><dd>{{ duration(stats.average_duration_mins|round|int) }}</dd></div>
       <div><dt>Avg rating</dt><dd>{{ "%.1f"|format(stats.average_rating) }}</dd></div>
     </dl>
+    <h3 class="dist-title">Rating distribution</h3>
+    <div class="rating-dist">
+      {% for rating, count in distribution.items() %}
+      <div class="dist-row">
+        <span class="dist-label">{{ "★" * rating }}</span>
+        <span class="dist-bar"><span class="dist-fill" style="width: {{ ((count / stats.session_count) * 100)|round|int }}%"></span></span>
+        <span class="dist-count">{{ count }}</span>
+      </div>
+      {% endfor %}
+    </div>
     {% else %}
     <p class="muted">No sessions here yet — the stats will flow once you log one.</p>
     {% endif %}

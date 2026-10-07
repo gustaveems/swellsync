@@ -211,12 +211,14 @@ def create_app(data_dir: str | None = None) -> Flask:
         ]
         stats = domain_logic.calculate_spot_stats(sessions)
         ideal = domain_logic.filter_ideal_sessions(sessions)
+        distribution = domain_logic.rating_distribution(sessions)
         return render_template(
             "spot_detail.html",
             spot=spot,
             sessions=sessions,
             stats=stats,
             ideal_sessions=ideal,
+            distribution=distribution,
             today=date.today().isoformat(),
         )
 

@@ -185,6 +185,15 @@ main { padding: 28px 20px 48px; min-height: calc(100vh - 56px - 70px); }
 .filter-form { display: flex; align-items: center; gap: 8px; }
 .filter-form select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 
+/* Rating distribution bars */
+.dist-title { margin: 16px 0 8px; font-size: 0.85rem; font-weight: 600; color: var(--ocean); }
+.rating-dist { display: grid; gap: 6px; }
+.dist-row { display: grid; grid-template-columns: 72px 1fr 24px; align-items: center; gap: 8px; font-size: 0.85rem; }
+.dist-label { color: var(--star); letter-spacing: 1px; white-space: nowrap; overflow: hidden; }
+.dist-bar { display: block; background: var(--foam); border-radius: 999px; height: 10px; overflow: hidden; }
+.dist-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-dark)); }
+.dist-count { text-align: right; color: var(--muted); }
+
 .site-footer {
   border-top: 1px solid var(--line);
   padding: 18px 20px;

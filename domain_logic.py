@@ -138,6 +138,20 @@ def filter_ideal_sessions(sessions, min_rating=DEFAULT_MIN_RATING):
     return ideal
 
 
+def rating_distribution(sessions):
+    """Count sessions per rating 1–5 (for one spot or the whole log).
+
+    Returns a dict keyed 1..5 in display order; sessions without a usable
+    rating, or with out-of-range ratings, are not counted anywhere.
+    """
+    counts = {rating: 0 for rating in range(RATING_MIN, RATING_MAX + 1)}
+    for row in sessions:
+        rating = _to_int(row.get("wave_or_wind_rating"))
+        if rating in counts:
+            counts[rating] += 1
+    return counts
+
+
 def validate_session_data(data):
     """Validate a session payload. Values may be strings (form posts) or ints.
 

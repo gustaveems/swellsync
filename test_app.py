@@ -351,6 +351,37 @@ class TestValidateSpotData:
 
 
 # ---------------------------------------------------------------------------
+# domain_logic.rating_distribution
+# ---------------------------------------------------------------------------
+
+class TestRatingDistribution:
+    def test_empty_input_returns_all_zero_counts(self):
+        assert domain_logic.rating_distribution([]) == {
+            1: 0, 2: 0, 3: 0, 4: 0, 5: 0
+        }
+
+    def test_counts_each_rating(self):
+        sessions = [{"wave_or_wind_rating": r} for r in (5, 5, 4, 1)]
+        assert domain_logic.rating_distribution(sessions) == {
+            1: 1, 2: 0, 3: 0, 4: 1, 5: 2
+        }
+
+    def test_missing_or_unusable_ratings_are_ignored(self):
+        sessions = [
+            {"wave_or_wind_rating": None},
+            {},
+            {"wave_or_wind_rating": "3"},
+        ]
+        assert domain_logic.rating_distribution(sessions) == {
+            1: 0, 2: 0, 3: 1, 4: 0, 5: 0
+        }
+
+    def test_out_of_range_ratings_are_ignored(self):
+        assert domain_logic.rating_distribution(
+            [{"wave_or_wind_rating": 9}]) == {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+
+
+# ---------------------------------------------------------------------------
 # SQLite schema & engine-level guarantees
 # ---------------------------------------------------------------------------
 
@@ -609,6 +640,14 @@ class TestViewsAndStats:
         response = client.get("/spots/1")
         assert b"all-time" in response.data
         assert b"mushy" in response.data  # all sessions table shows both
+
+    def test_spot_detail_shows_rating_distribution(self, client):
+        add_spot(client)
+        add_session(client, spot_id=1, rating=5)
+        add_session(client, spot_id=1, rating=3)
+        response = client.get("/spots/1")
+        assert response.status_code == 200
+        assert b"dist-fill" in response.data
 
     def test_unknown_route_returns_custom_404(self, client):
         response = client.get("/no/such/page")
