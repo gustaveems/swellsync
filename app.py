@@ -343,15 +343,19 @@ def create_app(data_dir: str | None = None) -> Flask:
     def _render_sessions_page(db, spots, form, errors):
         spot_filter = request.args.get("spot", type=int)
         if spot_filter:
-            sessions = db.execute(
+            rows = db.execute(
                 SQL_SESSIONS_WITH_SPOT
                 + " WHERE s.spot_id = ? ORDER BY s.date DESC, s.id DESC",
                 (spot_filter,),
             ).fetchall()
         else:
-            sessions = db.execute(
+            rows = db.execute(
                 SQL_SESSIONS_WITH_SPOT + " ORDER BY s.date DESC, s.id DESC"
             ).fetchall()
+        sessions = [dict(row) for row in rows]
+        epic_only = bool(request.args.get("epic"))
+        if epic_only:
+            sessions = domain_logic.filter_ideal_sessions(sessions)
         status = 422 if errors else 200
         return render_template(
             "sessions.html",
@@ -360,6 +364,7 @@ def create_app(data_dir: str | None = None) -> Flask:
             form=form,
             errors=errors,
             spot_filter=spot_filter,
+            epic_only=epic_only,
             today=date.today().isoformat(),
         ), status
 

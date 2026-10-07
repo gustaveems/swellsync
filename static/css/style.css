@@ -194,6 +194,10 @@ main { padding: 28px 20px 48px; min-height: calc(100vh - 56px - 70px); }
 .dist-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-dark)); }
 .dist-count { text-align: right; color: var(--muted); }
 
+/* Epic-only toggle */
+.epic-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
+.epic-toggle input { accent-color: var(--accent); }
+
 .site-footer {
   border-top: 1px solid var(--line);
   padding: 18px 20px;

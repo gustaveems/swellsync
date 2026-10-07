@@ -72,6 +72,12 @@
         <option value="{{ s.id }}" {% if spot_filter == s.id %}selected{% endif %}>{{ s.name }}</option>
         {% endfor %}
       </select>
+      <label class="epic-toggle" for="filter-epic">
+        <input type="checkbox" id="filter-epic" name="epic" value="1"
+               {% if epic_only %}checked{% endif %}
+               onchange="this.form.submit()">
+        Epic only <span class="badge">rating ≥ 4</span>
+      </label>
     </form>
   </div>
   {{ session_table(sessions, show_spot=true) }}

@@ -656,6 +656,33 @@ class TestViewsAndStats:
 
 
 # ---------------------------------------------------------------------------
+# Epic-only session filter (sessions page query param)
+# ---------------------------------------------------------------------------
+
+class TestEpicSessionFilter:
+    def test_epic_only_hides_low_rated_sessions(self, client):
+        add_spot(client)
+        add_session(client, spot_id=1, rating=2, notes="mushy")
+        add_session(client, spot_id=1, rating=5, notes="all-time")
+        response = client.get("/sessions?epic=1")
+        assert response.status_code == 200
+        assert b"all-time" in response.data
+        assert b"mushy" not in response.data
+
+    def test_epic_filter_combines_with_spot_filter(self, client):
+        add_spot(client, name="Spot One", location="A")
+        add_spot(client, name="Spot Two", location="B")
+        add_session(client, spot_id=1, rating=5, notes="one epic")
+        add_session(client, spot_id=1, rating=2, notes="one mush")
+        add_session(client, spot_id=2, rating=5, notes="two epic")
+        response = client.get("/sessions?epic=1&spot=1")
+        assert response.status_code == 200
+        assert b"one epic" in response.data
+        assert b"one mush" not in response.data
+        assert b"two epic" not in response.data
+
+
+# ---------------------------------------------------------------------------
 # Infrastructure: /healthz deployment liveness probe
 # ---------------------------------------------------------------------------
 
