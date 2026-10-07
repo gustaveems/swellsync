@@ -16,7 +16,7 @@ Run:
 """
 
 from contextlib import closing
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 import sqlite3
 
@@ -269,6 +269,18 @@ class TestValidateSessionData:
         assert domain_logic.validate_session_data(
             self.valid_payload(date="2024-02-29")) == {}
 
+    def test_today_is_a_valid_date(self):
+        errors = domain_logic.validate_session_data(
+            self.valid_payload(date=date.today().isoformat()))
+        assert errors == {}
+
+    def test_future_dates_are_rejected(self):
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        for bad in (tomorrow, "2999-12-31"):
+            errors = domain_logic.validate_session_data(
+                self.valid_payload(date=bad))
+            assert "date" in errors, bad
+
     def test_non_string_date_is_rejected(self):
         errors = domain_logic.validate_session_data(self.valid_payload(date=None))
         assert "date" in errors
@@ -507,6 +519,21 @@ class TestSessionCrud:
 
     def test_session_for_missing_spot_rejected_via_fk(self, client, db_path):
         response = add_session(client, spot_id=999)
+        assert response.status_code == 422
+        assert fetch_all(db_path, "SELECT * FROM sessions") == []
+
+    def test_future_dated_session_rejected_at_route_level(self, client, db_path):
+        add_spot(client)
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        response = client.post(
+            "/sessions",
+            data={
+                "spot_id": "1",
+                "date": tomorrow,
+                "duration_mins": "60",
+                "wave_or_wind_rating": "3",
+            },
+        )
         assert response.status_code == 422
         assert fetch_all(db_path, "SELECT * FROM sessions") == []
 

@@ -144,7 +144,8 @@ def validate_session_data(data):
     Returns a dict mapping field name -> human-readable error; an empty dict
     means the payload is valid. Referential integrity (does spot_id exist?)
     is deliberately NOT checked here — that is the SQLite foreign key's job,
-    which keeps this function pure and database-free.
+    which keeps this function pure and database-free. Dates in the future
+    are rejected: a logger records sessions that already happened.
     """
     errors = {}
 
@@ -177,9 +178,12 @@ def validate_session_data(data):
         errors["date"] = "Date must look like YYYY-MM-DD."
     else:
         try:
-            date.fromisoformat(date_str)
+            parsed = date.fromisoformat(date_str)
         except ValueError:
             errors["date"] = "That is not a real calendar date."
+        else:
+            if parsed > date.today():
+                errors["date"] = "Session date cannot be in the future."
 
     if len(_text_or_empty(data.get("gear_used"))) > MAX_GEAR_LENGTH:
         errors["gear_used"] = f"Gear must be {MAX_GEAR_LENGTH} characters or fewer."
