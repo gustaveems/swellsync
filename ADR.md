@@ -33,6 +33,31 @@ can instantiate isolated instances with throwaway data directories.
 
 ---
 
+## ADR-001a — Amendment (2026-10-08): containerized via the provided template
+
+**Status:** Accepted — 2026-10-08
+
+A later reading of the assignment brief (github.com/ami232/sdd-assignment-1)
+clarified §7: the app must ship runnable in a container, using a *provided*
+Dockerfile template — not a self-authored one, which §1 still prohibits. This
+does not change ADR-001's framework decision, only how it is packaged, so it
+is recorded here as an amendment rather than a new ADR (the log keeps exactly
+five decisions).
+
+**Decision:** copy the template to the repo root and fill its four `TODO`
+slots — `python:3.12-slim`, pinned `pip install`, an explicit source `COPY`,
+and `CMD ["python", "app.py"]`, the same single command as the direct run. No
+build args, no extra stages, `docker-compose` and CI still out of scope.
+
+**Consequences:**
+* (+) The `0.0.0.0` bind and `$PORT`/`$DATA_DIR` reading required here were
+  already enforced by ADR-001's runtime choice — nothing in the app code had
+  to change to satisfy the contract.
+* (+) Proven by the provided checker: all checks pass, including idempotent
+  seeding and the `PORT=9123` override (see the README's §7 evidence).
+* (−) The build context must be curated (`.dockerignore`, explicit `COPY`) so
+  `.git`, `.venv`, local `*.db`, and tests never enter the image.
+
 ## ADR-002 — Domain scoping and the independence seam
 
 **Status:** Accepted — 2026-10-05
