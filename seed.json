@@ -1,0 +1,16 @@
+{
+  "spots": [
+    {"name": "Ocean Beach North", "location": "San Francisco, CA", "ideal_wind_dir": "NW offshore", "ideal_swell_ft": 8.0},
+    {"name": "Mavericks", "location": "Half Moon Bay, CA", "ideal_wind_dir": "S offshore", "ideal_swell_ft": 15.0},
+    {"name": "Ho'okipa", "location": "Maui, HI", "ideal_wind_dir": "NE trade wind", "ideal_swell_ft": 6.0},
+    {"name": "Newport Harbor", "location": "Newport Beach, CA", "ideal_wind_dir": "SW sea breeze", "ideal_swell_ft": null}
+  ],
+  "sessions": [
+    {"spot": 1, "date": "2026-09-14", "duration_mins": 75, "wave_or_wind_rating": 5, "gear_used": "6'6 Shortboard", "notes": "Waist-high and clean at dawn, offshore all morning."},
+    {"spot": 1, "date": "2026-09-28", "duration_mins": 45, "wave_or_wind_rating": 2, "gear_used": "9'0 Longboard", "notes": "Onshore chop, crowded lineup, little to ride."},
+    {"spot": 3, "date": "2026-10-02", "duration_mins": 120, "wave_or_wind_rating": 5, "gear_used": "5.0 wavesail", "notes": "Trade wind filled at noon, side-offshore, long plane rides."},
+    {"spot": 3, "date": "2026-10-03", "duration_mins": 90, "wave_or_wind_rating": 4, "gear_used": "Laser", "notes": "Texts build on the outside reef, steady 18 knots."},
+    {"spot": 4, "date": "2026-10-05", "duration_mins": 60, "wave_or_wind_rating": 3, "gear_used": "Laser", "notes": "Light SW breeze, flat water, good for gybe practice."},
+    {"spot": 2, "date": "2026-10-06", "duration_mins": 30, "wave_or_wind_rating": 4, "gear_used": "Tow board", "notes": "Big-day check: 15 ft sets, chested up, tow session only."}
+  ]
+}

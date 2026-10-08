@@ -23,7 +23,7 @@ import sqlite3
 import pytest
 
 import domain_logic
-from app import DB_FILENAME, connect_db, create_app
+from app import DB_FILENAME, connect_db, create_app, load_reference_data
 
 
 # ---------------------------------------------------------------------------
@@ -653,6 +653,53 @@ class TestViewsAndStats:
         response = client.get("/no/such/page")
         assert response.status_code == 404
         assert b"drifted" in response.data
+
+
+# ---------------------------------------------------------------------------
+# Reference-data seeding (§7.11): loads on empty, never re-seeds
+# ---------------------------------------------------------------------------
+
+class TestReferenceSeeding:
+    def test_seed_does_not_run_by_default(self, app, db_path):
+        # The test fixture builds the app without seed=True, so a fresh
+        # database stays empty — that is what keeps the CRUD tests isolated.
+        assert fetch_all(db_path, "SELECT * FROM spots") == []
+
+    def test_seed_populates_directory_on_empty_db(self, tmp_path):
+        data_dir = tmp_path / "seeded"
+        create_app(data_dir=str(data_dir), seed=True)
+        db_file = str(data_dir / DB_FILENAME)
+        spots = fetch_all(db_file, "SELECT * FROM spots")
+        assert len(spots) > 0
+        assert all(s["name"] and s["location"] for s in spots)
+        sessions = fetch_all(db_file, "SELECT * FROM sessions")
+        assert len(sessions) > 0
+        # Seeded sessions reference real seeded spots (the FK is enforced).
+        spot_ids = {s["id"] for s in spots}
+        assert all(sess["spot_id"] in spot_ids for sess in sessions)
+
+    def test_seed_is_idempotent_across_restarts(self, tmp_path):
+        data_dir = tmp_path / "twice"
+        db_file = str(data_dir / DB_FILENAME)
+        create_app(data_dir=str(data_dir), seed=True)
+        first_spots = fetch_all(db_file, "SELECT id, name FROM spots ORDER BY id")
+        first_sessions = fetch_all(db_file, "SELECT * FROM sessions")
+
+        # Second boot on the same volume: the count guard must skip re-seed.
+        create_app(data_dir=str(data_dir), seed=True)
+        assert fetch_all(db_file, "SELECT id, name FROM spots ORDER BY id") == first_spots
+        assert len(fetch_all(db_file, "SELECT * FROM sessions")) == len(first_sessions)
+
+    def test_load_reference_data_reports_zero_when_populated(self, tmp_path):
+        create_app(data_dir=str(tmp_path))  # creates the schema, no seed
+        db_file = tmp_path / DB_FILENAME
+        assert load_reference_data(db_file) > 0
+        assert load_reference_data(db_file) == 0
+
+    def test_missing_seed_file_is_a_no_op(self, tmp_path):
+        count = load_reference_data(
+            tmp_path / "x.db", seed_file=Path("/nonexistent/seed.json"))
+        assert count == 0
 
 
 # ---------------------------------------------------------------------------

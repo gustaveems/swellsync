@@ -17,6 +17,10 @@ All cross-domain math lives in domain_logic.py (pure functions, no Flask).
 Run:
     python app.py
 
+On first boot `python app.py` seeds reference spots and demo sessions from
+the committed seed.json — but only when the directory is empty, so restarting
+against an existing database never duplicates it (the §7.11 contract).
+
 Environment:
     PORT         server port, default 8000 (binds 0.0.0.0)
     DATA_DIR     directory for swellsync.db, default ./data
@@ -26,6 +30,7 @@ Environment:
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from contextlib import closing
@@ -49,6 +54,7 @@ import domain_logic
 DEFAULT_PORT = 8000
 DEFAULT_DATA_DIR = "./data"
 DB_FILENAME = "swellsync.db"
+SEED_FILENAME = "seed.json"
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS spots (
@@ -108,6 +114,52 @@ def init_db(db_path: Path) -> None:
         conn.commit()
 
 
+def load_reference_data(db_path: Path, seed_file: Path | None = None) -> int:
+    """Seed reference spots + demo sessions on first boot, idempotently.
+
+    Reads the committed seed file (never a prebuilt .db) and inserts it only
+    when the spots table is empty. That guard is what §7.11 checks: a restart
+    on an existing volume must NOT re-seed and duplicate the data. Returns the
+    number of spots inserted (0 if the directory was already populated, or if
+    the seed file is absent).
+    """
+    seed_file = seed_file or Path(__file__).with_name(SEED_FILENAME)
+    if not seed_file.exists():
+        return 0
+    with closing(connect_db(db_path)) as conn:
+        if conn.execute("SELECT COUNT(*) FROM spots").fetchone()[0]:
+            return 0
+        data = json.loads(seed_file.read_text(encoding="utf-8"))
+        spot_ids = []
+        for spot in data["spots"]:
+            cursor = conn.execute(
+                "INSERT INTO spots (name, location, ideal_wind_dir, ideal_swell_ft)"
+                " VALUES (?, ?, ?, ?)",
+                (
+                    spot["name"],
+                    spot["location"],
+                    spot.get("ideal_wind_dir"),
+                    spot.get("ideal_swell_ft"),
+                ),
+            )
+            spot_ids.append(cursor.lastrowid)
+        for session in data.get("sessions", []):
+            conn.execute(
+                "INSERT INTO sessions (spot_id, date, duration_mins,"
+                " wave_or_wind_rating, gear_used, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    spot_ids[session["spot"] - 1],
+                    session["date"],
+                    session["duration_mins"],
+                    session["wave_or_wind_rating"],
+                    session.get("gear_used"),
+                    session.get("notes"),
+                ),
+            )
+        conn.commit()
+        return len(spot_ids)
+
+
 def get_db() -> sqlite3.Connection:
     if "db" not in g:
         g.db = connect_db(Path(current_app.config["DB_PATH"]))
@@ -156,14 +208,18 @@ def _session_write_values(form: dict) -> tuple:
 # 3. Application factory
 # ---------------------------------------------------------------------------
 
-def create_app(data_dir: str | None = None) -> Flask:
-    """Build the app. ``data_dir`` overrides $DATA_DIR (used by the test suite)."""
+def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
+    """Build the app. ``data_dir`` overrides $DATA_DIR (used by the test suite);
+    ``seed`` loads reference data on first boot. Default off so tests get an
+    empty database; the ``python app.py`` entrypoint and container turn it on."""
     app = Flask(__name__)
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY", "swellsync-dev-secret"),
         DB_PATH=str(resolve_db_path(data_dir)),
     )
     init_db(Path(app.config["DB_PATH"]))
+    if seed:
+        load_reference_data(Path(app.config["DB_PATH"]))
     app.teardown_appcontext(close_db)
 
     # -- Infrastructure: deployment liveness probe (no domain logic) --------
@@ -450,4 +506,4 @@ def create_app(data_dir: str | None = None) -> Flask:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", DEFAULT_PORT))
-    create_app().run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG") == "1")
+    create_app(seed=True).run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG") == "1")
