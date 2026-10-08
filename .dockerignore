@@ -1,0 +1,23 @@
+# Keep the build context minimal. The Dockerfile COPYs source explicitly, so
+# this is belt-and-suspenders: none of this should ever reach the daemon.
+.git
+.gitignore
+.venv
+venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+data/
+*.db
+*.sqlite
+*.sqlite3
+.env
+# Docs and tests are not needed to RUN the app (§7.11 / TODO 3).
+test_app.py
+README.md
+ADR.md
+AI_USAGE.md
+RESUME.md
+Dockerfile
+.dockerignore
