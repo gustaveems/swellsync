@@ -30,6 +30,8 @@ Environment:
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import sqlite3
@@ -39,6 +41,7 @@ from pathlib import Path
 
 from flask import (
     Flask,
+    Response,
     abort,
     current_app,
     flash,
@@ -222,6 +225,17 @@ def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
         load_reference_data(Path(app.config["DB_PATH"]))
     app.teardown_appcontext(close_db)
 
+    @app.after_request
+    def apply_security_headers(response):
+        # Defence-in-depth for a local app; Jinja2 autoescaping already stops
+        # stored XSS. No CSP here: the templates use a few inline handlers, so
+        # a strict policy would break the demo and a permissive one is theatre.
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        return response
+
     # -- Infrastructure: deployment liveness probe (no domain logic) --------
 
     @app.route("/healthz")
@@ -395,6 +409,51 @@ def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
             flash("Session logged. 🤙", "success")
             return redirect(url_for("sessions_page"))
         return _render_sessions_page(db, spots, {}, {})
+
+    @app.route("/sessions/export.csv")
+    def sessions_export_csv():
+        db = get_db()
+        spot_filter = request.args.get("spot", type=int)
+        if spot_filter:
+            rows = db.execute(
+                SQL_SESSIONS_WITH_SPOT
+                + " WHERE s.spot_id = ? ORDER BY s.date DESC, s.id DESC",
+                (spot_filter,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                SQL_SESSIONS_WITH_SPOT + " ORDER BY s.date DESC, s.id DESC"
+            ).fetchall()
+        sessions = [dict(row) for row in rows]
+        if request.args.get("epic"):
+            sessions = domain_logic.filter_ideal_sessions(sessions)
+
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(
+            ["date", "spot", "duration_mins", "rating", "gear_used", "notes"]
+        )
+        for s in sessions:
+            writer.writerow([
+                s["date"],
+                s["spot_name"],
+                s["duration_mins"],
+                s["wave_or_wind_rating"],
+                s["gear_used"] or "",
+                s["notes"] or "",
+            ])
+        filename = "swellsync-sessions"
+        if spot_filter:
+            filename += f"-spot-{spot_filter}"
+        if request.args.get("epic"):
+            filename += "-epic"
+        return Response(
+            buffer.getvalue(),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}.csv"'
+            },
+        )
 
     def _render_sessions_page(db, spots, form, errors):
         spot_filter = request.args.get("spot", type=int)

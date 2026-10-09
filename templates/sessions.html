@@ -79,6 +79,7 @@
         Epic only <span class="badge">rating ≥ 4</span>
       </label>
     </form>
+    <a class="btn btn-secondary btn-small" href="{{ url_for('sessions_export_csv') }}">Export CSV</a>
   </div>
   {{ session_table(sessions, show_spot=true) }}
 </section>

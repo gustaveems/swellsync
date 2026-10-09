@@ -748,3 +748,81 @@ class TestHealthEndpoint:
         data = client.get("/healthz").get_json()
         assert data["spots"] == 1
         assert data["sessions"] == 1
+
+
+# ---------------------------------------------------------------------------
+# CSV export of the session log (Domain 2 read across the seam)
+# ---------------------------------------------------------------------------
+
+class TestCsvExport:
+    def test_export_headers_and_empty_body(self, client):
+        response = client.get("/sessions/export.csv")
+        assert response.status_code == 200
+        assert response.mimetype == "text/csv"
+        assert "attachment" in response.headers["Content-Disposition"]
+        assert "swellsync-sessions.csv" in response.headers["Content-Disposition"]
+        text = response.get_data(as_text=True)
+        assert text.splitlines() == ["date,spot,duration_mins,rating,gear_used,notes"]
+
+    def test_export_rows_in_newest_first_order(self, client):
+        add_spot(client, name="Cove")
+        add_session(client, spot_id=1, day="2026-01-01", duration=60, rating=3,
+                    gear="Longboard", notes="old")
+        add_session(client, spot_id=1, day="2026-02-02", duration=90, rating=5,
+                    gear="Shortboard", notes="new")
+        lines = client.get("/sessions/export.csv").get_data(as_text=True).splitlines()
+        assert lines[0] == "date,spot,duration_mins,rating,gear_used,notes"
+        assert lines[1].startswith("2026-02-02")   # newest first
+        assert lines[2].startswith("2026-01-01")
+        assert "Cove" in lines[1]
+
+    def test_export_respects_spot_and_epic_filters(self, client):
+        add_spot(client, name="Spot One")
+        add_spot(client, name="Spot Two")
+        add_session(client, spot_id=1, rating=5, notes="one epic")
+        add_session(client, spot_id=1, rating=2, notes="one mush")
+        add_session(client, spot_id=2, rating=5, notes="two epic")
+
+        spot_only = client.get("/sessions/export.csv?spot=1")
+        assert "spot-1" in spot_only.headers["Content-Disposition"]
+        text = spot_only.get_data(as_text=True)
+        assert "one epic" in text      # both spot-1 rows present...
+        assert "one mush" in text      # ...rating is NOT filtered here
+        assert "two epic" not in text  # spot 2 excluded by the spot filter
+
+        epic_all = client.get("/sessions/export.csv?epic=1")
+        assert "epic" in epic_all.headers["Content-Disposition"]
+        epic_text = epic_all.get_data(as_text=True)
+        assert "one epic" in epic_text
+        assert "two epic" in epic_text
+        assert "one mush" not in epic_text  # rating 2 dropped by epic filter
+
+        both = client.get("/sessions/export.csv?spot=1&epic=1")
+        both_text = both.get_data(as_text=True)
+        assert "one epic" in both_text      # spot 1 AND rating >= 4
+        assert "one mush" not in both_text  # fails epic
+        assert "two epic" not in both_text  # fails spot
+
+    def test_export_quotes_commas_in_notes(self, client):
+        add_spot(client)
+        add_session(client, spot_id=1, notes="Offshore, punchy, crowded")
+        row = client.get("/sessions/export.csv").get_data(as_text=True).splitlines()[1]
+        assert '"Offshore, punchy, crowded"' in row  # proper CSV quoting
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure: security headers
+# ---------------------------------------------------------------------------
+
+class TestSecurityHeaders:
+    def test_hardening_headers_on_html_pages(self, client):
+        response = client.get("/")
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+        assert response.headers["Referrer-Policy"] == "no-referrer"
+        assert "camera=()" in response.headers["Permissions-Policy"]
+
+    def test_headers_on_error_page_too(self, client):
+        response = client.get("/no/such/page")
+        assert response.status_code == 404
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
