@@ -18,6 +18,11 @@ deliberately free of external services.
 * **Rating distribution** — 1–5 star-count bars on every spot page.
 * **Health probe** — `GET /healthz` returns live status, DB check, and
   entity counts.
+* **CSV export** — `GET /sessions/export.csv` downloads the session log as a
+  CSV attachment, honouring the same spot and epic filters.
+* **Security headers** — every response carries `X-Content-Type-Options`,
+  `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` (no CSP —
+  see Design notes).
 * **First-boot seed** — `seed.json` loads four reference spots and six demo
   sessions onto an empty database and only then (§7.11), so restarts never
   duplicate it and the app is useful the moment it starts.
@@ -101,10 +106,10 @@ The exact coverage command required by the assignment:
 pytest --cov=domain_logic test_app.py
 ```
 
-Measured output from the committed tree (2026-10-08):
+Measured output from the committed tree (2026-10-09):
 
 ```text
-75 passed in 1.10s
+81 passed in 1.48s
 ---------- coverage: platform darwin, python 3.9.6 ----------
 Name              Stmts   Miss  Cover
 -------------------------------------
