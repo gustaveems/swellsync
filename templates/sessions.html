@@ -72,6 +72,13 @@
         <option value="{{ s.id }}" {% if spot_filter == s.id %}selected{% endif %}>{{ s.name }}</option>
         {% endfor %}
       </select>
+      <label class="muted" for="filter-sort">Sort</label>
+      <select id="filter-sort" name="sort" onchange="this.form.submit()">
+        <option value="date" {% if sort_key == 'date' %}selected{% endif %}>Newest first</option>
+        <option value="oldest" {% if sort_key == 'oldest' %}selected{% endif %}>Oldest first</option>
+        <option value="duration" {% if sort_key == 'duration' %}selected{% endif %}>Longest session</option>
+        <option value="rating" {% if sort_key == 'rating' %}selected{% endif %}>Best rated</option>
+      </select>
       <label class="epic-toggle" for="filter-epic">
         <input type="checkbox" id="filter-epic" name="epic" value="1"
                {% if epic_only %}checked{% endif %}
@@ -79,7 +86,8 @@
         Epic only <span class="badge">rating ≥ 4</span>
       </label>
     </form>
-    <a class="btn btn-secondary btn-small" href="{{ url_for('sessions_export_csv') }}">Export CSV</a>
+    <a class="btn btn-secondary btn-small"
+       href="{{ url_for('sessions_export_csv', spot=spot_filter, sort=sort_key, epic='1' if epic_only else None) }}">Export CSV</a>
   </div>
   {{ session_table(sessions, show_spot=true) }}
 </section>

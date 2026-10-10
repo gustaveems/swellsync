@@ -90,6 +90,31 @@ SQL_SESSIONS_WITH_SPOT = (
     "FROM sessions s JOIN spots sp ON sp.id = s.spot_id"
 )
 
+# Allowed sort keys -> ORDER BY clause. User input selects a key from this map
+# and is never concatenated into SQL, so an unknown or hostile ?sort= value
+# simply falls back to the default ordering.
+SESSION_SORTS = {
+    "date": "ORDER BY s.date DESC, s.id DESC",
+    "oldest": "ORDER BY s.date ASC, s.id ASC",
+    "duration": "ORDER BY s.duration_mins DESC, s.date DESC",
+    "rating": "ORDER BY s.wave_or_wind_rating DESC, s.date DESC",
+}
+
+
+def resolve_sort(raw: str | None) -> str:
+    """Map a requested sort key onto the whitelist, defaulting safely."""
+    return raw if raw in SESSION_SORTS else "date"
+
+
+def sessions_query(sort_key: str, spot_id: int | None = None) -> tuple:
+    """Return (sql, params) for the session log with the chosen order."""
+    sql = SQL_SESSIONS_WITH_SPOT
+    params: tuple = ()
+    if spot_id:
+        sql += " WHERE s.spot_id = ?"
+        params = (spot_id,)
+    return sql + " " + SESSION_SORTS[sort_key], params
+
 
 # ---------------------------------------------------------------------------
 # 2. Shared DB plumbing — infrastructure, owned by neither domain
@@ -439,16 +464,9 @@ def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
     def sessions_export_csv():
         db = get_db()
         spot_filter = request.args.get("spot", type=int)
-        if spot_filter:
-            rows = db.execute(
-                SQL_SESSIONS_WITH_SPOT
-                + " WHERE s.spot_id = ? ORDER BY s.date DESC, s.id DESC",
-                (spot_filter,),
-            ).fetchall()
-        else:
-            rows = db.execute(
-                SQL_SESSIONS_WITH_SPOT + " ORDER BY s.date DESC, s.id DESC"
-            ).fetchall()
+        sort_key = resolve_sort(request.args.get("sort"))
+        sql, params = sessions_query(sort_key, spot_filter)
+        rows = db.execute(sql, params).fetchall()
         sessions = [dict(row) for row in rows]
         if request.args.get("epic"):
             sessions = domain_logic.filter_ideal_sessions(sessions)
@@ -482,16 +500,9 @@ def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
 
     def _render_sessions_page(db, spots, form, errors):
         spot_filter = request.args.get("spot", type=int)
-        if spot_filter:
-            rows = db.execute(
-                SQL_SESSIONS_WITH_SPOT
-                + " WHERE s.spot_id = ? ORDER BY s.date DESC, s.id DESC",
-                (spot_filter,),
-            ).fetchall()
-        else:
-            rows = db.execute(
-                SQL_SESSIONS_WITH_SPOT + " ORDER BY s.date DESC, s.id DESC"
-            ).fetchall()
+        sort_key = resolve_sort(request.args.get("sort"))
+        sql, params = sessions_query(sort_key, spot_filter)
+        rows = db.execute(sql, params).fetchall()
         sessions = [dict(row) for row in rows]
         epic_only = bool(request.args.get("epic"))
         if epic_only:
@@ -505,6 +516,7 @@ def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
             errors=errors,
             spot_filter=spot_filter,
             epic_only=epic_only,
+            sort_key=sort_key,
             today=date.today().isoformat(),
         ), status
 

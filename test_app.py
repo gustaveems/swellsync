@@ -53,6 +53,16 @@ def fetch_all(path, sql, params=()):
         return [dict(row) for row in conn.execute(sql, params)]
 
 
+def table_body(html):
+    """Return only the <tbody> of the page's first table.
+
+    Whole-page substring checks are unreliable: a flash banner left over from
+    a preceding POST names rows that filters should have removed, and form
+    placeholders contain real spot names.
+    """
+    return html.split("<tbody>", 1)[1].split("</tbody>", 1)[0]
+
+
 def add_spot(client, name="Pacifica Bluff", location="Pacifica, CA",
              wind="Offshore", swell="4.5"):
     return client.post(
@@ -507,13 +517,7 @@ class TestSpotCrud:
 class TestSpotSearch:
     @staticmethod
     def table(html):
-        """Just the <tbody> of the results table.
-
-        Asserting on the whole page is unreliable: a flash banner left over
-        from the preceding POST names the spot we expect to be filtered out,
-        and the add-spot form's placeholders name real beaches.
-        """
-        return html.split("<tbody>", 1)[1].split("</tbody>", 1)[0]
+        return table_body(html)
 
     def test_no_query_lists_every_spot(self, client):
         add_spot(client, name="Alpha Point", location="North Coast")
@@ -662,6 +666,76 @@ class TestSessionCrud:
         assert response.status_code == 200
         assert b"Pacifica Bluff" in response.data
         assert date.today().isoformat().encode() in response.data
+
+
+# ---------------------------------------------------------------------------
+# Session log ordering (?sort= on /sessions and the CSV export)
+# ---------------------------------------------------------------------------
+
+class TestSessionSort:
+    def seed_log(self, client):
+        add_spot(client, name="Sort Cove", location="Testville")
+        add_session(client, spot_id=1, day="2026-01-05", duration=30, rating=2,
+                    notes="alpha")
+        add_session(client, spot_id=1, day="2026-06-10", duration=120, rating=5,
+                    notes="bravo")
+        add_session(client, spot_id=1, day="2026-03-15", duration=75, rating=3,
+                    notes="charlie")
+
+    def rows(self, client, query=""):
+        return table_body(client.get(f"/sessions{query}").get_data(as_text=True))
+
+    def test_default_is_newest_first(self, client):
+        self.seed_log(client)
+        rows = self.rows(client)
+        assert rows.index("bravo") < rows.index("charlie") < rows.index("alpha")
+
+    def test_sort_oldest_flips_the_date_order(self, client):
+        self.seed_log(client)
+        rows = self.rows(client, "?sort=oldest")
+        assert rows.index("alpha") < rows.index("charlie") < rows.index("bravo")
+
+    def test_sort_by_duration_puts_longest_first(self, client):
+        self.seed_log(client)
+        rows = self.rows(client, "?sort=duration")
+        assert rows.index("bravo") < rows.index("charlie") < rows.index("alpha")
+
+    def test_sort_by_rating_puts_best_first(self, client):
+        self.seed_log(client)
+        rows = self.rows(client, "?sort=rating")
+        assert rows.index("bravo") < rows.index("charlie") < rows.index("alpha")
+
+    def test_unknown_sort_falls_back_and_cannot_inject(self, client):
+        self.seed_log(client)
+        response = client.get("/sessions?sort=%3BDROP%20TABLE%20sessions%2D%2D")
+        assert response.status_code == 200
+        rows = table_body(response.get_data(as_text=True))
+        # Whitelisted: the value is never interpolated, so data survives and
+        # the default ordering applies.
+        assert rows.index("bravo") < rows.index("charlie") < rows.index("alpha")
+
+    def test_sort_combines_with_spot_filter(self, client):
+        add_spot(client, name="One Beach", location="North")
+        add_spot(client, name="Two Beach", location="South")
+        add_session(client, spot_id=1, rating=5, notes="one-high")
+        add_session(client, spot_id=2, rating=2, notes="two-low")
+        add_session(client, spot_id=2, rating=4, notes="two-mid")
+        rows = self.rows(client, "?spot=2&sort=rating")
+        assert "one-high" not in rows
+        assert rows.index("two-mid") < rows.index("two-low")
+
+    def test_export_honours_the_same_sort(self, client):
+        self.seed_log(client)
+        lines = client.get(
+            "/sessions/export.csv?sort=duration"
+        ).get_data(as_text=True).splitlines()[1:]
+        assert "bravo" in lines[0]
+        assert "alpha" in lines[-1]
+
+    def test_select_reflects_the_active_choice(self, client):
+        self.seed_log(client)
+        text = client.get("/sessions?sort=rating").get_data(as_text=True)
+        assert '<option value="rating" selected>' in text
 
 
 # ---------------------------------------------------------------------------
