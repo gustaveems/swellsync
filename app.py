@@ -196,6 +196,17 @@ def _swell_or_none(raw: str | None) -> float | None:
     return float(raw.strip()) if raw and raw.strip() else None
 
 
+def _like_pattern(term: str) -> str:
+    """Wrap a search term as a SQLite LIKE pattern, escaping its wildcards.
+
+    '!' is the ESCAPE character the query declares, so a literal '%', '_' or
+    '!' typed by the user matches itself instead of silently widening the
+    search (and the term is bound as a parameter, never concatenated in).
+    """
+    escaped = term.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+    return f"%{escaped}%"
+
+
 def _session_write_values(form: dict) -> tuple:
     return (
         int(form["spot_id"]),
@@ -319,9 +330,23 @@ def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
         return _render_spots_page(db, {}, {})
 
     def _render_spots_page(db, form, errors):
-        spots = db.execute("SELECT * FROM spots ORDER BY name COLLATE NOCASE").fetchall()
+        query = request.args.get("q", "").strip()
+        if query:
+            pattern = _like_pattern(query)
+            spots = db.execute(
+                "SELECT * FROM spots"
+                " WHERE (name LIKE ? ESCAPE '!' OR location LIKE ? ESCAPE '!')"
+                " ORDER BY name COLLATE NOCASE",
+                (pattern, pattern),
+            ).fetchall()
+        else:
+            spots = db.execute(
+                "SELECT * FROM spots ORDER BY name COLLATE NOCASE"
+            ).fetchall()
         status = 422 if errors else 200
-        return render_template("spots.html", spots=spots, form=form, errors=errors), status
+        return render_template(
+            "spots.html", spots=spots, form=form, errors=errors, query=query
+        ), status
 
     @app.route("/spots/<int:spot_id>/edit", methods=["GET", "POST"])
     def spot_edit_page(spot_id):

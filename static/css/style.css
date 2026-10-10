@@ -182,8 +182,16 @@ main { padding: 28px 20px 48px; min-height: calc(100vh - 56px - 70px); }
   border-radius: 999px;
   vertical-align: middle;
 }
-.filter-form { display: flex; align-items: center; gap: 8px; }
+.filter-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .filter-form select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.filter-form input[type="search"] {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  min-width: 190px;
+}
+.filter-form input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 
 /* Rating distribution bars */
 .dist-title { margin: 16px 0 8px; font-size: 0.85rem; font-weight: 600; color: var(--ocean); }

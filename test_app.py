@@ -501,6 +501,67 @@ class TestSpotCrud:
 
 
 # ---------------------------------------------------------------------------
+# Spot Directory search (?q= on /spots)
+# ---------------------------------------------------------------------------
+
+class TestSpotSearch:
+    @staticmethod
+    def table(html):
+        """Just the <tbody> of the results table.
+
+        Asserting on the whole page is unreliable: a flash banner left over
+        from the preceding POST names the spot we expect to be filtered out,
+        and the add-spot form's placeholders name real beaches.
+        """
+        return html.split("<tbody>", 1)[1].split("</tbody>", 1)[0]
+
+    def test_no_query_lists_every_spot(self, client):
+        add_spot(client, name="Alpha Point", location="North Coast")
+        add_spot(client, name="Beta Point", location="South Coast")
+        rows = self.table(client.get("/spots").get_data(as_text=True))
+        assert "Alpha Point" in rows
+        assert "Beta Point" in rows
+
+    def test_search_matches_name_case_insensitively(self, client):
+        add_spot(client, name="Hookipa", location="Maui, HI")
+        add_spot(client, name="Trestles", location="Laguna Beach, CA")
+        rows = self.table(client.get("/spots?q=HOOK").get_data(as_text=True))
+        assert "Hookipa" in rows
+        assert "Trestles" not in rows
+
+    def test_search_matches_location_not_just_name(self, client):
+        add_spot(client, name="Hookipa", location="Maui, HI")
+        add_spot(client, name="Trestles", location="Laguna Beach, CA")
+        rows = self.table(client.get("/spots?q=laguna").get_data(as_text=True))
+        assert "Trestles" in rows
+        assert "Hookipa" not in rows
+
+    def test_search_treats_percent_as_a_literal(self, client):
+        # '%' and '_' are LIKE wildcards: they must be escaped, or a query of
+        # "%" would match every row.
+        add_spot(client, name="Fifty Percent Reef", location="Has a 50% rule")
+        add_spot(client, name="Glass Cliff", location="No symbols here")
+        rows = self.table(client.get("/spots?q=%25").get_data(as_text=True))  # "%"
+        assert "Fifty Percent Reef" in rows
+        assert "Glass Cliff" not in rows
+
+    def test_underscore_is_literal_too(self, client):
+        add_spot(client, name="North_Slab", location="Cold country")
+        add_spot(client, name="North Slab Two", location="Warm country")
+        rows = self.table(client.get("/spots?q=_").get_data(as_text=True))
+        assert "North_Slab" in rows
+        assert "North Slab Two" not in rows
+
+    def test_query_echoed_and_no_match_state(self, client):
+        add_spot(client, name="Hookipa", location="Maui, HI")
+        response = client.get("/spots?q=noway")
+        text = response.get_data(as_text=True)
+        assert "No spot matches" in self.table(text)
+        assert "Hookipa" not in self.table(text)
+        assert 'value="noway"' in text  # the box keeps what you typed
+
+
+# ---------------------------------------------------------------------------
 # Domain 2 CRUD — Session Tracker (through the Flask test client)
 # ---------------------------------------------------------------------------
 
