@@ -18,8 +18,12 @@ deliberately free of external services.
 * **Rating distribution** — 1–5 star-count bars on every spot page.
 * **Health probe** — `GET /healthz` returns live status, DB check, and
   entity counts.
+* **Spot search** — `GET /spots?q=` matches a case-insensitive substring of a
+  spot's name or location; `%` and `_` are escaped so they match literally.
 * **CSV export** — `GET /sessions/export.csv` downloads the session log as a
-  CSV attachment, honouring the same spot and epic filters.
+  CSV attachment, honouring the same spot, epic and sort parameters.
+* **Sortable log** — `?sort=date|oldest|duration|rating` on the session list;
+  keys resolve through a whitelist, so the value never reaches the SQL.
 * **Security headers** — every response carries `X-Content-Type-Options`,
   `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` (no CSP —
   see Design notes).
@@ -106,10 +110,10 @@ The exact coverage command required by the assignment:
 pytest --cov=domain_logic test_app.py
 ```
 
-Measured output from the committed tree (2026-10-09):
+Measured output from the committed tree (2026-10-10):
 
 ```text
-81 passed in 1.48s
+95 passed in 2.07s
 ---------- coverage: platform darwin, python 3.9.6 ----------
 Name              Stmts   Miss  Cover
 -------------------------------------
@@ -180,9 +184,11 @@ app surfaces a friendly error instead of silently destroying history.
 ## §7 container contract — verification evidence
 
 Output of the course-provided `run.sh` contract checker against this
-repository (2026-10-08). The `ALL CHECKS PASSED` line includes §7.11
-idempotent seeding — `row counts unchanged across restart: sessions=6
-spots=4` — which is only reported on a host with `python3` ≥ 3.12.
+repository, re-run on 2026-10-10 after the search and sort features landed
+(identical to the first green run on 2026-10-08). The `ALL CHECKS PASSED`
+line includes §7.11 idempotent seeding — `row counts unchanged across
+restart: sessions=6 spots=4` — which is only reported on a host with
+`python3` ≥ 3.12.
 
 ```text
 === SDD Assignment 1 contract check ===
