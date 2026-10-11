@@ -18,6 +18,7 @@ test_app.py
 README.md
 ADR.md
 AI_USAGE.md
+REPORT.md
 RESUME.md
 Dockerfile
 .dockerignore

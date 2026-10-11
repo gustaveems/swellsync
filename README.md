@@ -144,8 +144,9 @@ swellsync/
 ├── seed.json              # reference spots + demo sessions, loaded when empty
 ├── Dockerfile             # course-provided template, 4 TODO slots filled
 ├── .dockerignore          # trims the build context
-├── ADR.md                 # 5 architecture decision records
+├── ADR.md                 # 5 architecture decision records (+ dated amendments)
 ├── AI_USAGE.md            # AI assistance log (syllabus requirement)
+├── REPORT.md              # SDLC report: model, SMART goals, architecture + schema
 ├── README.md              # this file
 ├── templates/             # Jinja2 templates (server-rendered UI)
 │   ├── base.html, _macros.html, index.html, 404.html
@@ -180,6 +181,13 @@ app surfaces a friendly error instead of silently destroying history.
 * **Simplification, stated plainly:** there is no CSRF token on forms and the
   Flask dev server is used as the runtime — both acceptable for a local,
   single-user course assignment, and both flagged as future hardening.
+* **No CSP, on purpose.** The templates still use a few inline event handlers
+  and one inline `style=`, so a strict policy would break the UI and a policy
+  relaxed with `'unsafe-inline'` would claim protection it does not give. Four
+  other hardening headers are set on every response. See `ADR-001b`.
+* **User input never becomes SQL.** Search terms are bound as parameters with
+  `%`/`_` escaped; sorting selects a key from a fixed whitelist. See
+  `ADR-003a`.
 
 ## §7 container contract — verification evidence
 
