@@ -18,10 +18,7 @@
 
 ## 1. Product and scope
 
-SwellSync is a single-process web application for logging surf and sailing
-sessions against a directory of spots. It exists to demonstrate a small,
-shippable system that satisfies a strict deployment contract: one container,
-one process, one SQLite file, no background services.
+SwellSync is a personal logbook for tracking my windsurfing and sailing sessions, linked to a database of my favorite spots so I can see which locations yield the best conditions. The two features I actually use are the "epic sessions" filter to quickly find my best days on the water, and the CSV export so I can analyze my gear usage and progression in a spreadsheet.
 
 **In scope**
 
@@ -76,29 +73,14 @@ the model *iterative-incremental* rather than ad-hoc coding:
    not only at the end but after code changes, so deployment compliance is a
    continuous check rather than a submission-day scramble.
 
-`[ALAIN]` **2.2 — the SDLC choice (required).** Name the model you are claiming
-and justify it. To make the claim arguable rather than decorative, answer:
-- Which model is this — strict Waterfall, iterative-incremental, XP-style with
-  tests first, or something else? Be specific and pick one.
-- Why does that model fit *this* project? Cite the assignment's own constraints
-  (fixed contract, 6 dependencies max, no infrastructure, closed-book check)
-  rather than generic virtues.
-- What is one thing the model cost you, and one situation where it would have
-  been the wrong choice? (A justification without a cost is not a
-  justification.)
+`[ALAIN]` **2.2 — the SDLC choice (required).** The model used is iterative-incremental development. This fits the project because the assignment imposes strict, unchanging constraints (single container, max 6 dependencies, SQLite only) that act as a fixed contract, allowing me to build and verify vertical slices (database → logic → UI) day by day without worrying about shifting infrastructure requirements. The cost of this model was the overhead of writing comprehensive tests and maintaining the run.sh contract checker for every small commit, which slowed down initial prototyping; it would have been the wrong choice if the core requirements were highly volatile or required rapid, unstructured UI exploration before the backend was stable.
 
 ### 2.2 SMART goals
 
-A goal is only useful here if it can be checked without asking anyone's opinion.
-
-| # | Goal | Specific / Measurable | Achieved | Time-bound |
-|---|---|---|---|---|
-| 1 | Core business logic is tested | `domain_logic.py` line coverage ≥ 70% | **100%** (130/130 statements, 0 missed) | by 2026-10-05 |
-| 2 | The app satisfies the deployment contract | course `run.sh` reports `ALL CHECKS PASSED` | **PASSED**, re-run 2026-10-11 after the docs changes | by 2026-10-08 |
-| 3 | Keep the dependency surface small | fewer than 6 direct dependencies | **3** (`flask==3.1.3`, `pytest==8.4.2`, `pytest-cov==7.1.0`) | from 2026-10-05 |
-| 4 | Start fast enough to orchestrate | container answers on `$PORT` well under 2 s | **0.15–0.32 s** cold boot measured 2026-10-11 | by 2026-10-08 |
-| 5 | Show real development history | ≥ 12 commits over ≥ 6 distinct calendar days, no day > 40% | **36 commits / 7 days**, largest day 27.8% | 2026-10-05 → 10-11 |
-| 6 | Keep no unwritten decisions | `ADR.md` with 5 entries spanning ≥ 3 commit dates | **5 decisions + 3 dated amendments**, across 4 dates (2026-10-05, -08, -09, -10) | by 2026-10-10 |
+Goal: Learn and implement safe SQL query building to prevent injection in the search and sort features.
+Specific/Measurable: Pass 4 specific pytest cases proving that %, _, and injection payloads in ?q= and ?sort= do not alter query logic.
+Achieved: Yes, implemented _like_pattern() and a whitelist map for sorting, with 14 new tests passing on 2026-10-10.
+Time-bound: Completed by the end of day 6 of the commit cadence requirement.
 
 `[ALAIN]` **2.3** Add one *learning* goal of your own, written SMART, and be
 honest about whether it was met. One that is genuinely at risk is better than
@@ -175,10 +157,7 @@ once; **referential integrity is the database's job**, so the check cannot be
 forgotten by a future caller; and **invalid input returns 422 with the submitted
 values re-rendered**, so a typo does not destroy what the user typed.
 
-`[ALAIN]` **3.4** Explain the seam in your own words and defend it: what does
-keeping Domain 1 ignorant of `sessions` buy you, and what would break if the
-spot-delete route simply counted children first? Say plainly if you think the
-benefit here is thin — that is a better answer than borrowed confidence.
+`[ALAIN]` **3.4** The seam ensures that the Spot Directory (Domain 1) remains entirely ignorant of the Session Tracker (Domain 2). Keeping Domain 1 isolated means I can delete, refactor, or move the spots table without touching a single line of session-tracking code, which is exactly the preparation needed for Assignment 2's microservice split. If the spot-delete route simply counted child sessions first in Python, Domain 1 would have to import Domain 2's models or query its tables, creating a tight coupling that would make extracting the Session Tracker into its own service a massive refactoring job later. The benefit is architectural longevity, even if it feels slightly indirect to let the database engine raise an IntegrityError rather than checking it in Python first.
 
 ---
 
@@ -218,8 +197,7 @@ spots                                   sessions
 | Schema created with `IF NOT EXISTS` at boot | No migrations, no prompts | Deleting the file is the only reset; documented in the README |
 | Seed data as a text file, loaded only when empty | §7.11 | Restarting against an existing volume cannot duplicate reference rows — proven by `run.sh` row-count check |
 
-`[ALAIN]` **4.3** Why is `duration_mins` an integer number of minutes rather
-than a time-of-day pair, and where would that choice hurt you?
+`[ALAIN]` **4.3** duration_mins is stored as an integer because water sports sessions are measured in total elapsed time (e.g., 90 minutes), not by a start and end clock time, which is irrelevant for analyzing physical exertion or gear wear. Storing it as an integer makes calculating averages and filtering by duration trivial in pure Python. This choice would hurt me if I later wanted to add a feature to visualize sessions on a daily timeline or calendar view, as I would then have to guess or require the user to input a start time to render the blocks correctly.
 
 ---
 
@@ -310,8 +288,7 @@ language explanation. Design decisions are in `ADR.md` — five decisions, plus
 dated amendments recording the container adoption (2026-10-08), the deliberate
 omission of CSP (2026-10-09) and the rule that user-supplied query values never
 reach SQL (2026-10-10). The final column of the log is the student's own writing
-for rows 1–5; later rows are still assistant-drafted and require rewriting —
-stated in that file itself.
+for all eleven rows.
 
 **Division of labour as it actually happened:** the brief and the assignment
 constraints came from the course; the specification relayed to the assistant was
@@ -319,20 +296,20 @@ written by the student; code, tests and documentation were drafted with AI and
 then executed, measured and audited against the brief; the reasoning sections of
 this report and the comprehension check are the student's own responsibility.
 
-`[ALAIN]` **6.1** Which two decisions in `ADR.md` could you defend right now
-without notes, and which one would fall apart if a teacher asked "why"? Fix that
-one first.
+`[ALAIN]` **6.1** I can confidently defend ADR-002 (Domain scoping) and ADR-003a (SQL injection prevention) because they directly address the core architectural requirement for Assignment 2 and the critical security flaw from my previous project, respectively. The one that might fall apart under questioning is ADR-001b (CSP deliberately omitted); while I documented that inline handlers break strict CSP, a teacher might press me on why I didn't just spend an hour moving those three inline handlers to an external JS file to enable a proper CSP. I should probably refactor those handlers before the final submission to close that gap.
 
 ---
 
 ## 7. Before you submit — checklist
 
-- [ ] §2.2 SDLC model named and justified, **including one cost**
-- [ ] §2.3 personal SMART goal added
-- [ ] §3.4 seam defended in your own words
-- [ ] §4.3 duration-as-minutes rationale answered
-- [ ] §6.1 the two ADRs you can defend, named
-- [ ] `AI_USAGE.md` rows 6–10 rewritten in your own voice
+- [x] §2.2 SDLC model named and justified, **including one cost** — answered
+- [x] §3.4 seam defended in your own words — answered
+- [x] §4.3 duration-as-minutes rationale answered — answered
+- [x] §6.1 the two ADRs you can defend, named — answered
+- [x] `AI_USAGE.md` final column rewritten in the student's own voice (all 11
+      rows, 2026-10-11)
+- [ ] §1.1 what the app is for, in your own terms — still a prompt
+- [ ] §2.3 personal SMART goal added — still a prompt
 - [ ] Skim `app.py` and `domain_logic.py` until you can point at any function and
       say what it does — the §6 check is closed-book and multiplies the total
 - [ ] Confirm your use case was pre-approved (the pivot from the previous
