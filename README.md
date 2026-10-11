@@ -25,8 +25,9 @@ deliberately free of external services.
 * **Sortable log** — `?sort=date|oldest|duration|rating` on the session list;
   keys resolve through a whitelist, so the value never reaches the SQL.
 * **Security headers** — every response carries `X-Content-Type-Options`,
-  `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` (no CSP —
-  see Design notes).
+  `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and a
+  `Content-Security-Policy` that locks scripts to this origin (see Design
+  notes).
 * **First-boot seed** — `seed.json` loads four reference spots and six demo
   sessions onto an empty database and only then (§7.11), so restarts never
   duplicate it and the app is useful the moment it starts.
@@ -110,10 +111,10 @@ The exact coverage command required by the assignment:
 pytest --cov=domain_logic test_app.py
 ```
 
-Measured output from the committed tree (2026-10-10):
+Measured output from the committed tree (2026-10-11):
 
 ```text
-95 passed in 2.07s
+103 passed in 1.59s
 ---------- coverage: platform darwin, python 3.9.6 ----------
 Name              Stmts   Miss  Cover
 -------------------------------------
@@ -144,7 +145,7 @@ swellsync/
 ├── seed.json              # reference spots + demo sessions, loaded when empty
 ├── Dockerfile             # course-provided template, 4 TODO slots filled
 ├── .dockerignore          # trims the build context
-├── ADR.md                 # 5 architecture decision records (+ dated amendments)
+├── ADR.md                 # 5 decisions, plus dated amendments (ADR-001a/b/c, 003a)
 ├── AI_USAGE.md            # AI assistance log (syllabus requirement)
 ├── REPORT.md              # SDLC report: model, SMART goals, architecture + schema
 ├── README.md              # this file
@@ -152,7 +153,10 @@ swellsync/
 │   ├── base.html, _macros.html, index.html, 404.html
 │   ├── spots.html, spot_detail.html, spot_edit.html
 │   └── sessions.html, session_edit.html
-└── static/css/style.css   # single hand-written stylesheet (no build step)
+└── static/                # served by Flask itself — no bundler
+    ├── css/style.css      # single hand-written stylesheet
+    ├── js/app.js          # the only JavaScript: confirms + filter auto-submit
+    └── img/favicon.svg    # a real file, so img-src needs no data: exception
 ```
 
 ## Database schema (auto-created at startup)
@@ -181,10 +185,13 @@ app surfaces a friendly error instead of silently destroying history.
 * **Simplification, stated plainly:** there is no CSRF token on forms and the
   Flask dev server is used as the runtime — both acceptable for a local,
   single-user course assignment, and both flagged as future hardening.
-* **No CSP, on purpose.** The templates still use a few inline event handlers
-  and one inline `style=`, so a strict policy would break the UI and a policy
-  relaxed with `'unsafe-inline'` would claim protection it does not give. Four
-  other hardening headers are set on every response. See `ADR-001b`.
+* **CSP is enforced, and says so.** `script-src 'self'` with no `'unsafe-inline'`
+  — the five inline handlers that used to make a real policy impossible now
+  live in `static/js/app.js`, keyed off `data-confirm` / `data-autosubmit`. The
+  one exception is `style-src 'unsafe-inline'`, because the rating bars set
+  their width from data; inline styles cannot run scripts, so the trade is
+  asymmetric and documented rather than hidden. Filter controls also keep a
+  `<noscript>` Apply button, since auto-submit is an enhancement. See `ADR-001c`.
 * **User input never becomes SQL.** Search terms are bound as parameters with
   `%`/`_` escaped; sorting selects a key from a fixed whitelist. See
   `ADR-003a`.
@@ -192,7 +199,7 @@ app surfaces a friendly error instead of silently destroying history.
 ## §7 container contract — verification evidence
 
 Output of the course-provided `run.sh` contract checker against this
-repository, re-run on 2026-10-10 after the search and sort features landed
+repository, re-run on 2026-10-11 after the Content-Security-Policy refactor
 (identical to the first green run on 2026-10-08). The `ALL CHECKS PASSED`
 line includes §7.11 idempotent seeding — `row counts unchanged across
 restart: sessions=6 spots=4` — which is only reported on a host with

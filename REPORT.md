@@ -58,7 +58,7 @@ commit. Evidence for the shape of the process, taken from the repository:
 | 2026-10-08 | 5 | Reference-data seed, container image, contract evidence |
 | 2026-10-09 | 3 | CSV export, security headers |
 | 2026-10-10 | 4 | Spot search, sortable log |
-| 2026-10-11 | 3 | This report; ADR amendments closing the date-span rule; log row |
+| 2026-10-11 | 7 | This report; ADR amendments closing the date-span rule; the student's own-words log column; CSP enforced by extracting the inline handlers |
 
 Three properties of that sequence are worth naming because they are what makes
 the model *iterative-incremental* rather than ad-hoc coding:
@@ -266,14 +266,16 @@ evidence that the tests do something:
 
 - **No CSRF tokens** on state-changing forms; writes are POST-only and the
   threat model is a local single-user app. Flagged for hardening.
-- **No CSP**, because templates still use a few inline event handlers; a strict
-  policy would break them and a permissive one would be theatre. Documented in
-  the README rather than quietly omitted.
+- **CSP is enforced** — `script-src 'self'` with no `'unsafe-inline'`, after the
+  five inline handlers moved to `static/js/app.js` (ADR-001c). Two residuals
+  are named rather than smoothed: `style-src 'unsafe-inline'` stays because the
+  rating bars write their width from data, and with JavaScript disabled a
+  delete now happens without a confirmation prompt.
 - **Werkzeug development server** is the runtime. One process, one write at a
   time — fine for this scope, not a load-bearing choice.
 - **Local `python3` is 3.9.6 while the container is 3.12.** The suite passes on
   the older host, so the code is compatible with both.
-- The **first day of history contains 10 commits** (27.8% of the 36-commit total
+- The **first day of history contains 10 commits** (25.0% of the 40-commit total
   as of 2026-10-11, and falling with every later commit). The spread is genuine
   and forward-dated; nothing was backdated, per §5 of the brief.
 
@@ -282,13 +284,14 @@ evidence that the tests do something:
 ## 6. AI use and authorship
 
 AI assistance was used throughout and is disclosed rather than implied. The
-per-interaction log is `AI_USAGE.md` (11 rows, one per substantive interaction),
+per-interaction log is `AI_USAGE.md` (12 rows, one per substantive interaction),
 which records the prompt, the disposition, what changed and why, and a plain-
 language explanation. Design decisions are in `ADR.md` — five decisions, plus
-dated amendments recording the container adoption (2026-10-08), the deliberate
-omission of CSP (2026-10-09) and the rule that user-supplied query values never
-reach SQL (2026-10-10). The final column of the log is the student's own writing
-for all eleven rows.
+dated amendments recording the container adoption (2026-10-08), the headers and
+the original CSP omission (2026-10-09, since superseded), the rule that
+user-supplied query values never reach SQL (2026-10-10), and the CSP being
+enforced after the inline handlers were extracted (2026-10-11, ADR-001c). The
+final column of the log is the student's own writing for all twelve rows.
 
 **Division of labour as it actually happened:** the brief and the assignment
 constraints came from the course; the specification relayed to the assistant was
@@ -306,10 +309,12 @@ this report and the comprehension check are the student's own responsibility.
 - [x] §3.4 seam defended in your own words — answered
 - [x] §4.3 duration-as-minutes rationale answered — answered
 - [x] §6.1 the two ADRs you can defend, named — answered
-- [x] `AI_USAGE.md` final column rewritten in the student's own voice (all 11
-      rows, 2026-10-11)
+- [x] `AI_USAGE.md` final column rewritten in the student's own voice (all rows,
+      2026-10-11)
+- [x] The §6.1 gap closed: inline handlers extracted to `static/js/app.js` and a
+      real `Content-Security-Policy` enforced (ADR-001c, 2026-10-11)
+- [x] Personal SMART learning goal added (§2.2 area — SQL query-building safety)
 - [ ] §1.1 what the app is for, in your own terms — still a prompt
-- [ ] §2.3 personal SMART goal added — still a prompt
 - [ ] Skim `app.py` and `domain_logic.py` until you can point at any function and
       say what it does — the §6 check is closed-book and multiplies the total
 - [ ] Confirm your use case was pre-approved (the pivot from the previous

@@ -60,7 +60,8 @@ build args, no extra stages, `docker-compose` and CI still out of scope.
 
 ## ADR-001b — Amendment (2026-10-09): runtime hardening, CSP deliberately omitted
 
-**Status:** Accepted — 2026-10-09
+**Status:** Superseded by ADR-001c on 2026-10-11 (the headers stand; the CSP
+omission no longer does)
 
 **Context:** The evaluation plan penalised the earlier project for rendering
 unsanitised input with `innerHTML`. SwellSync already avoids that class of bug:
@@ -86,6 +87,43 @@ not provide.
   explicit: move the inline handlers into `static/` first, then add CSP.
 * (−) Still no CSRF token (ADR-001's simplification stands); POST-only writes
   and a local threat model are the current mitigation.
+
+## ADR-001c — Amendment (2026-10-11): CSP enforced after extracting inline JS
+
+**Status:** Accepted — 2026-10-11
+
+**Context:** ADR-001b declined a CSP because one would have been theatre: the
+templates carried five inline event handlers (two delete confirms, three auto-
+submitting filters), so `script-src` could only be satisfied by
+`'unsafe-inline'`, which permits exactly the injected-script class of bug the
+policy exists to stop. The same reasoning that made the omission correct also
+made it the right thing to remove as soon as it was cheap: the handlers were
+three call sites, not an architecture.
+
+**Decision:** move all behaviour into `static/js/app.js`, loaded `defer` from
+the same origin, driven by `data-confirm` and `data-autosubmit` attributes.
+Emit
+`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'`.
+Replace the `data:` URI favicon with `static/img/favicon.svg` so `img-src`
+needs no exception. Where a behaviour was an enhancement, keep the page usable
+without it: the filter form gains a `<noscript>` Apply button.
+
+**Consequences:**
+* (+) `script-src 'self'` with no inline escape hatch — the directive that
+  actually mitigates injected scripts is enforceable, and the autoescaping
+  story in ADR-001b is now backed by a second, independent control.
+* (−) One documented exception remains: `style-src 'unsafe-inline'`, because
+  the rating-distribution bars write their width from data into a `style`
+  attribute. Inline styles cannot execute script, so the trade is asymmetric;
+  quantising the widths into fixed classes would remove it at a real cost in
+  chart fidelity. Deliberately not worth it, and stated rather than hidden.
+* (−) Deleting now requires JS to prompt at all. The button still works without
+  it — it deletes without asking — so this is a genuine small regression in
+  guardrails, mitigated by writes being POST-only.
+* (+) Testable: the suite asserts against *rendered* HTML that no `on*=` handler
+  survives anywhere, and parses the policy directive by directive to pin
+  `script-src 'self'` and the single `style-src` escalation. A handler
+  reintroduced in a shared macro fails the build.
 
 ## ADR-002 — Domain scoping and the independence seam
 

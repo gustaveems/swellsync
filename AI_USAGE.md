@@ -2,16 +2,17 @@
 
 > **Read this first.** This log records every substantive AI interaction on
 > the project, as required by the course syllabus. The final column ("In my
-> own words…") is the student's own writing for all eleven rows — the
-> assistant's edits to it were limited to spelling and grammar. Commit hashes
-> reference this repository's history (`git log --oneline`).
+> own words…") is the student's own writing for rows 1–11, and the assistant's
+> edits there were limited to spelling and grammar; row 12 is left as a prompt
+> for the student to answer. Commit hashes reference this repository's history
+> (`git log --oneline`).
 
 | | |
 |---|---|
 | **Project** | SwellSync — Surf & Sail Session Logger (Assignment 1) |
 | **AI tool** | Qwen Code — terminal-based coding agent |
-| **Interaction dates** | 2026-10-05 → 2026-10-11 · 11 logged interactions · remediation ongoing |
-| **Verified results** | 95/95 pytest tests passing · `domain_logic.py` line coverage **100%** (requirement: ≥ 70%) · live HTTP smoke test on `0.0.0.0:$PORT` · `/healthz` liveness probe · provided `run.sh` container contract: **ALL CHECKS PASSED** (incl. §7.11 idempotent seeding) |
+| **Interaction dates** | 2026-10-05 → 2026-10-11 · 12 logged interactions · submission 2026-10-12 |
+| **Verified results** | 103/103 pytest tests passing · `domain_logic.py` line coverage **100%** (requirement: ≥ 70%) · live HTTP smoke test on `0.0.0.0:$PORT` · `/healthz` liveness probe · CSP enforcing `script-src 'self'` · provided `run.sh` container contract: **ALL CHECKS PASSED** (incl. §7.11 idempotent seeding) |
 
 | Date/commit | Tool | Prompt | Disposition | What changed & why | In my own words, how this works |
 |---|---|---|---|---|---|
@@ -26,13 +27,14 @@
 | 2026-10-09 / e72702b, 368e3d8 | Qwen Code | "Today is now Oct 9, time for the new commits" (day 5: ship real features so the day counts toward the ≥6-day rule). | In progress (multi-day remediation) | Added two stdlib-only features so `requirements.txt` and the container contract stay unchanged: a `/sessions/export.csv` route that streams the joined log as a CSV attachment and reuses the spot + epic filters, and an `after_request` hook setting four security headers. Deliberately did NOT add a CSP because the templates use inline handlers a strict policy would break (recorded as future hardening). Six new tests (81 total, `domain_logic` still 100%); re-ran `run.sh` to confirm ALL CHECKS PASSED after the change. | I needed more commits, so I added CSV export and some security headers. I used Python's built-in csv module because doing it manually with string commas would break if someone wrote a comma in their session notes. I skipped the Content-Security-Policy header on purpose because my HTML still has some inline onclick stuff that a strict policy would block, and I didn't want to fake it. |
 | 2026-10-10 / cb70930, 302758e, 09c436c | Qwen Code | "It is now Oct 10, make the new commits and features" (day 6 — the last distinct commit day the cadence rule needs). | In progress (multi-day remediation) | Shipped two features from the backlog: `?q=` search over the spot name/location, and `?sort=` ordering for the session log shared with the CSV export. Both stay inside the existing seams — the search query still touches only `spots`, and sorting picks a key out of a whitelist map rather than putting user text into SQL. 14 new tests (95 total), `run.sh` re-run to ALL CHECKS PASSED, README updated. | Added search and sorting. The tricky part was SQL injection. For search, if someone types a % sign, SQL treats it as a wildcard, so I had to write a function to escape it. For sorting, you can't parameterize column names, so I just made a dictionary of allowed sort options and ignored anything else. My tests failed at first because of leftover flash messages on the screen, which taught me to be more specific in my HTML assertions. |
 | 2026-10-11 / 6361c58, dfe2e53 | Qwen Code | "Today is 11 Oct, so yes make the SDLC report skeleton and I'll worry about the last 15% gap, and make any other commits you need to do." | In progress (final pre-submission day) | Wrote `REPORT.md` (~2,700 words, the brief's 4–5 pages): development model, SMART goals, an architecture diagram marking the domain seam and a schema diagram verified against `SCHEMA_SQL`/ADR-003 — with every figure re-measured today (0.15–0.32 s boot, 95 tests, 130/130 statements, 33 commits / 6 days as measured that morning) and `run.sh` re-run afterwards to ALL CHECKS PASSED. Auditing it against the brief exposed a real gap: the ADR needed to span ≥3 commit dates and had only two, so two decisions that had actually been made but never written down were added as dated amendments (ADR-001b, CSP deliberately omitted, 2026-10-09; ADR-003a, query values never reach SQL, 2026-10-10), and ADR-004's stale "well under a second" was corrected. | Wrote the bulk of this report. I left the reasoning parts as prompts for myself because the final exam is closed-book; if I just copy-pasted AI explanations, I'd fail the viva when the teacher asks me "why". Writing this actually made me realize I forgot to date some of my ADRs properly, so I had to go back and amend them to prove I made the decisions over time, not all on the last day. |
+| 2026-10-11 / 78148ba | Qwen Code | "yes do the CSP refactor and push it" | Accepted and shipped | Closed the gap he had flagged in his own report answer (§6.1): the five inline event handlers moved to `static/js/app.js`, driven by `data-confirm` / `data-autosubmit`, so `script-src 'self'` could be enforced with no `'unsafe-inline'`. One exception kept and documented — `style-src 'unsafe-inline'` for the data-sized rating bars. The `data:` favicon became `static/img/favicon.svg` so `img-src` needed no exception either, and the filter form gained a `<noscript>` Apply button because auto-submit was only an enhancement. Eight tests (103 total), `run.sh` re-run green, ADR-001b superseded by ADR-001c. | `[ALAIN — your own words: why was the earlier "no CSP" decision correct at the time, and what made it cheap to reverse? What is the one exception you still ship, and why is it a different kind of risk from inline script?]` |
 
 ---
 
 **Note on scope of assistance:** AI generated the initial drafts of the code,
 tests, and documentation. Every fact above — coverage numbers, smoke-test
 results, commit hashes — comes from commands actually executed against this
-repository. The final column is the student's own writing throughout.
-Outstanding before submission: filling the marked `[ALAIN]` prompts in
-`REPORT.md` (the SDLC justification, a personal SMART goal, the seam defence
-and the authorship reflection), and a human review of the generated files.
+repository. The final column is the student's own writing for rows 1–11; row
+12 is left as a prompt for him to answer. Outstanding before submission:
+answering row 12, filling the remaining `[ALAIN]` prompt in `REPORT.md` §1.1,
+and a human review of the generated files.
