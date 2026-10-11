@@ -61,7 +61,7 @@ commit. Evidence for the shape of the process, taken from the repository:
 | 2026-10-08 | 5 | Reference-data seed, container image, contract evidence |
 | 2026-10-09 | 3 | CSV export, security headers |
 | 2026-10-10 | 4 | Spot search, sortable log |
-| 2026-10-11 | — | This report |
+| 2026-10-11 | 3 | This report; ADR amendments closing the date-span rule; log row |
 
 Three properties of that sequence are worth naming because they are what makes
 the model *iterative-incremental* rather than ad-hoc coding:
@@ -94,10 +94,10 @@ A goal is only useful here if it can be checked without asking anyone's opinion.
 | # | Goal | Specific / Measurable | Achieved | Time-bound |
 |---|---|---|---|---|
 | 1 | Core business logic is tested | `domain_logic.py` line coverage ≥ 70% | **100%** (130/130 statements, 0 missed) | by 2026-10-05 |
-| 2 | The app satisfies the deployment contract | course `run.sh` reports `ALL CHECKS PASSED` | **PASSED**, re-run 2026-10-10 | by 2026-10-08 |
+| 2 | The app satisfies the deployment contract | course `run.sh` reports `ALL CHECKS PASSED` | **PASSED**, re-run 2026-10-11 after the docs changes | by 2026-10-08 |
 | 3 | Keep the dependency surface small | fewer than 6 direct dependencies | **3** (`flask==3.1.3`, `pytest==8.4.2`, `pytest-cov==7.1.0`) | from 2026-10-05 |
 | 4 | Start fast enough to orchestrate | container answers on `$PORT` well under 2 s | **0.15–0.32 s** cold boot measured 2026-10-11 | by 2026-10-08 |
-| 5 | Show real development history | ≥ 12 commits over ≥ 6 distinct calendar days, no day > 40% | **33 commits / 6 days**, day-1 share 30.3% | 2026-10-05 → 10-10 |
+| 5 | Show real development history | ≥ 12 commits over ≥ 6 distinct calendar days, no day > 40% | **36 commits / 7 days**, largest day 27.8% | 2026-10-05 → 10-11 |
 | 6 | Keep no unwritten decisions | `ADR.md` with 5 entries spanning ≥ 3 commit dates | **5 decisions + 3 dated amendments**, across 4 dates (2026-10-05, -08, -09, -10) | by 2026-10-10 |
 
 `[ALAIN]` **2.3** Add one *learning* goal of your own, written SMART, and be
@@ -238,7 +238,15 @@ curl -s localhost:8000/healthz              # {"database":"ok","spots":4,"sessio
 docker build -t swellsync .
 docker run --rm -p 8000:8000 -v swellsync-data:/data swellsync
 /path/to/run.sh /path/to/swellsync          # === ALL CHECKS PASSED ===
+
+git log --format=%ad --date=short | sort | uniq -c   # commit cadence, re-derive it
+git rev-list --count HEAD                            # total commits
 ```
+
+The cadence figures quoted in §2 are a snapshot taken while writing this report;
+the commands above re-derive them, and they will differ by the commits that
+landed the report itself. That is the point of putting the command next to the
+number.
 
 `run.sh`'s row-count step needs a host `python3` ≥ 3.12; on an older host it
 reports a WARN instead of proving §7.11. That is stated rather than hidden.
@@ -287,8 +295,9 @@ evidence that the tests do something:
   time — fine for this scope, not a load-bearing choice.
 - **Local `python3` is 3.9.6 while the container is 3.12.** The suite passes on
   the older host, so the code is compatible with both.
-- The **first day of history contains 10 commits** (30.3% of total). The spread
-  is genuine and forward-dated; nothing was backdated, per §5 of the brief.
+- The **first day of history contains 10 commits** (27.8% of the 36-commit total
+  as of 2026-10-11, and falling with every later commit). The spread is genuine
+  and forward-dated; nothing was backdated, per §5 of the brief.
 
 ---
 
