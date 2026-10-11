@@ -58,6 +58,35 @@ build args, no extra stages, `docker-compose` and CI still out of scope.
 * (−) The build context must be curated (`.dockerignore`, explicit `COPY`) so
   `.git`, `.venv`, local `*.db`, and tests never enter the image.
 
+## ADR-001b — Amendment (2026-10-09): runtime hardening, CSP deliberately omitted
+
+**Status:** Accepted — 2026-10-09
+
+**Context:** The evaluation plan penalised the earlier project for rendering
+unsanitised input with `innerHTML`. SwellSync already avoids that class of bug:
+every value reaches HTML through Jinja2 autoescaping, and no JavaScript string
+is built from user data. A reviewer could reasonably ask what else protects the
+app in transit.
+
+**Decision:** add four response-wide headers through `after_request` —
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`,
+`Referrer-Policy: no-referrer`, `Permissions-Policy` denying camera/mic/
+geolocation. **Do not** add a Content-Security-Policy. The templates still use a
+few inline event handlers (`onsubmit` confirms, `onchange` filter submits) and
+an inline `style=` on the rating bars, so a strict policy would break the UI,
+while a policy relaxed with `'unsafe-inline'` would advertise protection it does
+not provide.
+
+**Consequences:**
+* (+) The realistic browser-side risks for a local single-user app are reduced
+  without touching behaviour.
+* (+) Headers land on error pages too, since `after_request` runs for them.
+* (−) CSP is genuinely absent, not deferred quietly — recorded here and in the
+  README's design notes so it reads as a decision, and so the follow-up is
+  explicit: move the inline handlers into `static/` first, then add CSP.
+* (−) Still no CSRF token (ADR-001's simplification stands); POST-only writes
+  and a local threat model are the current mitigation.
+
 ## ADR-002 — Domain scoping and the independence seam
 
 **Status:** Accepted — 2026-10-05
@@ -132,6 +161,34 @@ foreign key.
 
 ---
 
+## ADR-003a — Amendment (2026-10-10): user-supplied query values never reach SQL
+
+**Status:** Accepted — 2026-10-10
+
+**Context:** Search (`?q=`) and sorting (`?sort=`) put a browser's query string
+into a `SELECT`. Concatenating either value would be textbook injection, and
+even a parameterised `LIKE` has a subtler trap: `%` and `_` are wildcards, so a
+user typing a literal percent would silently widen their own search to every
+row.
+
+**Decision:**
+* The search term is **bound as a parameter**, never concatenated, and is first
+  escaped by `_like_pattern()` for `%`, `_` and the `ESCAPE` character itself
+  (`'!'`), which makes those characters match literally.
+* Sorting cannot be parameterised at all (identifiers and `ORDER BY` clauses are
+  not values), so the request selects a key from the `SESSION_SORTS` whitelist
+  map. Unknown or hostile values fall through to the default ordering; nothing
+  the user sends is ever interpolated into the statement.
+
+**Consequences:**
+* (+) Both features are safe by construction rather than by validation, and the
+  rule is easy to keep: values bind, fragments map.
+* (+) Both behaviours are pinned by tests, including a deliberately
+  injection-shaped `?sort=` that must leave the data intact and fall back to the
+  default order, and `?q=%25` which must not return every spot.
+* (−) Sorting is limited to the four whitelisted orders; arbitrary column
+  sorting would mean editing the map, which is the intended cost.
+
 ## ADR-004 — Testing strategy: pure business logic first
 
 **Status:** Accepted — 2026-10-05
@@ -159,7 +216,8 @@ application itself is a thin layer of routes over two tables.
 Explicitly out of scope: browser/E2E tests and JavaScript tests.
 
 **Consequences:**
-* (+) The suite runs in well under a second; failures in the logic tier point
+* (+) The whole suite runs in about two seconds (95 tests, ~1.9 s measured
+   2026-10-11); failures in the logic tier point
    straight at a function, not at a page.
 * (+) Framework glue stays thin by construction — anything worth testing
    heavily was pushed into `domain_logic.py`.
