@@ -59,6 +59,25 @@ DEFAULT_DATA_DIR = "./data"
 DB_FILENAME = "swellsync.db"
 SEED_FILENAME = "seed.json"
 
+# Everything the app loads is same-origin, so script-src needs no 'unsafe-
+# inline': the three confirm dialogs and two auto-submitting filters live in
+# static/js/app.js instead of inline handlers. The one deliberate exception is
+# style-src 'unsafe-inline', because the rating-distribution bars set their
+# width from data via an inline style attribute. Inline styles cannot execute
+# script, so this trades almost nothing; widening script-src would.
+CONTENT_SECURITY_POLICY = "; ".join([
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self'",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+])
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS spots (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -264,12 +283,14 @@ def create_app(data_dir: str | None = None, seed: bool = False) -> Flask:
     @app.after_request
     def apply_security_headers(response):
         # Defence-in-depth for a local app; Jinja2 autoescaping already stops
-        # stored XSS. No CSP here: the templates use a few inline handlers, so
-        # a strict policy would break the demo and a permissive one is theatre.
+        # stored XSS. CSP is enforceable now that no template carries an inline
+        # handler or script - the single remaining exception is documented in
+        # CONTENT_SECURITY_POLICY itself.
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
         return response
 
     # -- Infrastructure: deployment liveness probe (no domain logic) --------

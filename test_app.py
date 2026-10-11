@@ -961,3 +961,83 @@ class TestSecurityHeaders:
         response = client.get("/no/such/page")
         assert response.status_code == 404
         assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+# ---------------------------------------------------------------------------
+# Content-Security-Policy (ADR-001c): enforced because no inline handlers remain
+# ---------------------------------------------------------------------------
+
+INLINE_HANDLERS = ("onsubmit=", "onchange=", "onclick=", "onload=", "oninput=")
+
+# Pages that render forms, with the data those forms need to appear.
+FORM_PAGES = ("/", "/spots", "/spots/1", "/spots/1/edit", "/sessions",
+              "/sessions/1/edit")
+
+
+def csp_directives(policy):
+    return dict(
+        part.strip().split(" ", 1) if " " in part else (part.strip(), "")
+        for part in policy.split(";")
+    )
+
+
+class TestContentSecurityPolicy:
+    def seed_once(self, client):
+        add_spot(client)
+        add_session(client, spot_id=1, rating=5)
+
+    def test_policy_is_emitted_and_locks_scripts_to_same_origin(self, client):
+        directives = csp_directives(
+            client.get("/").headers["Content-Security-Policy"])
+        assert directives["default-src"] == "'self'"
+        assert directives["script-src"] == "'self'"   # the one that matters
+        assert directives["object-src"] == "'none'"
+        assert directives["base-uri"] == "'self'"
+        assert "frame-ancestors" in directives
+        assert directives["form-action"] == "'self'"
+
+    def test_style_src_is_the_only_escalation(self, client):
+        directives = csp_directives(
+            client.get("/").headers["Content-Security-Policy"])
+        escalations = [name for name, value in directives.items()
+                       if "unsafe-" in value]
+        assert escalations == ["style-src"]
+        assert directives["style-src"] == "'self' 'unsafe-inline'"
+
+    def test_no_inline_event_handler_survives_into_rendered_html(self, client):
+        """The policy is only real if nothing still depends on inline JS.
+
+        Checked on rendered pages rather than the template source, so a handler
+        reintroduced anywhere - including inside a shared macro - fails here.
+        """
+        self.seed_once(client)
+        for path in FORM_PAGES:
+            html = client.get(path).get_data(as_text=True)
+            for handler in INLINE_HANDLERS:
+                assert handler not in html, f"{handler} leaked into {path}"
+
+    def test_delete_forms_carry_their_confirm_text_as_data(self, client):
+        self.seed_once(client)
+        html = client.get("/sessions").get_data(as_text=True)
+        assert 'data-confirm="Delete this session?"' in html
+        assert "data-autosubmit" in html
+
+    def test_behaviour_script_is_served_same_origin(self, client):
+        response = client.get("/static/js/app.js")
+        assert response.status_code == 200
+        assert b"data-confirm" in response.get_data()
+        assert b"data-autosubmit" in response.get_data()
+
+    def test_script_is_referenced_deferred_from_base_layout(self, client):
+        html = client.get("/").get_data(as_text=True)
+        assert "/static/js/app.js" in html
+        assert "defer" in html
+
+    def test_filter_form_works_without_javascript(self, client):
+        # The auto-submit controls are an enhancement; the fallback is explicit.
+        html = client.get("/sessions").get_data(as_text=True)
+        assert "<noscript>" in html and "Apply" in html
+
+    def test_favicon_is_a_local_file_not_a_data_uri(self, client):
+        assert client.get("/static/img/favicon.svg").status_code == 200
+        assert "data:image" not in client.get("/").get_data(as_text=True)

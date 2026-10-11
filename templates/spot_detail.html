@@ -10,7 +10,7 @@
   <div class="page-head-actions">
     <a class="btn btn-secondary btn-small" href="{{ url_for('spot_edit_page', spot_id=spot.id) }}">Edit spot</a>
     <form class="inline-form" method="post" action="{{ url_for('spot_delete_page', spot_id=spot.id) }}"
-          onsubmit="return confirm('Delete this spot? Not possible while sessions are logged here.')">
+          data-confirm="Delete this spot? Not possible while sessions are logged here.">
       <button class="btn btn-small btn-danger" type="submit">Delete spot</button>
     </form>
   </div>

@@ -43,7 +43,7 @@
         <a class="btn btn-tiny" href="{{ url_for('session_edit_page', session_id=s.id) }}">Edit</a>
         <form class="inline-form" method="post"
               action="{{ url_for('session_delete_page', session_id=s.id) }}"
-              onsubmit="return confirm('Delete this session?')">
+              data-confirm="Delete this session?">
           <input type="hidden" name="next" value="{{ request.path }}">
           <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
         </form>

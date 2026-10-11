@@ -66,14 +66,14 @@
     <h2>All sessions</h2>
     <form method="get" action="{{ url_for('sessions_page') }}" class="filter-form">
       <label class="muted" for="filter-spot">Filter by spot</label>
-      <select id="filter-spot" name="spot" onchange="this.form.submit()">
+      <select id="filter-spot" name="spot" data-autosubmit>
         <option value="">All spots</option>
         {% for s in spots %}
         <option value="{{ s.id }}" {% if spot_filter == s.id %}selected{% endif %}>{{ s.name }}</option>
         {% endfor %}
       </select>
       <label class="muted" for="filter-sort">Sort</label>
-      <select id="filter-sort" name="sort" onchange="this.form.submit()">
+      <select id="filter-sort" name="sort" data-autosubmit>
         <option value="date" {% if sort_key == 'date' %}selected{% endif %}>Newest first</option>
         <option value="oldest" {% if sort_key == 'oldest' %}selected{% endif %}>Oldest first</option>
         <option value="duration" {% if sort_key == 'duration' %}selected{% endif %}>Longest session</option>
@@ -82,9 +82,11 @@
       <label class="epic-toggle" for="filter-epic">
         <input type="checkbox" id="filter-epic" name="epic" value="1"
                {% if epic_only %}checked{% endif %}
-               onchange="this.form.submit()">
+               data-autosubmit>
         Epic only <span class="badge">rating ≥ 4</span>
       </label>
+      {# Without JS the controls above never auto-submit, so offer an explicit one. #}
+      <noscript><button class="btn btn-small btn-secondary" type="submit">Apply</button></noscript>
     </form>
     <a class="btn btn-secondary btn-small"
        href="{{ url_for('sessions_export_csv', spot=spot_filter, sort=sort_key, epic='1' if epic_only else None) }}">Export CSV</a>
