@@ -28,8 +28,6 @@ multi-user concurrency and background jobs. Each is recorded in `ADR.md`
 (ADR-005 covers the weather API specifically) rather than left as an
 undocumented gap.
 
-**1.1** SwellSync is a personal logbook for tracking my windsurfing and sailing sessions, linked to a database of my favorite spots so I can see which locations yield the best conditions. The two features I actually care about using are the "epic sessions" filter to quickly find my best days on the water, and the CSV export so I can analyze my gear usage and progression in a spreadsheet.
-
 ---
 
 ## 2. Development model
@@ -49,9 +47,9 @@ commit. Evidence for the shape of the process, taken from the repository:
 | 2026-10-09 | 3 | CSV export, security headers |
 | 2026-10-10 | 4 | Spot search, sortable log |
 | 2026-10-11 | 7 | This report; ADR amendments closing the date-span rule; the student's own-words log column; CSP enforced by extracting the inline handlers |
-| 2026-10-12 | 5 | Final documentation review: accuracy fixes, student voice for remaining log rows, verification note |
+| 2026-10-12 | 6 | Final documentation review: accuracy fixes, student voice for remaining log rows, verification note, reviewer feedback addressed |
 
-**Total: 45 commits across 8 distinct days** (snapshot as of commit `3a314f3`, 2026-10-12). Day 1 represents 22.2% of total (10/45), well under the 40% cap. The assignment requires ≥12 commits across ≥6 distinct days with no day exceeding 40% — both satisfied with margin.
+**Total: 46 commits across 8 distinct days** (snapshot as of commit `098df88`, 2026-10-12). Day 1 represents 21.7% of total (10/46), well under the 40% cap. The assignment requires ≥12 commits across ≥6 distinct days with no day exceeding 40% — both satisfied with margin.
 
 Three properties of that sequence are worth naming because they are what makes
 the model *iterative-incremental* rather than ad-hoc coding:
@@ -75,7 +73,7 @@ Specific/Measurable: Pass 4 specific pytest cases proving that %, _, and injecti
 Achieved: Yes, implemented _like_pattern() and a whitelist map for sorting, with 14 new tests passing on 2026-10-10.
 Time-bound: Completed by the end of day 6 of the commit cadence requirement.
 
-**2.4** Goal: Learn to write parameterized SQL with wildcard escaping. Specific/Measurable: Pass tests proving % and _ in ?q= do not act as wildcards. Achieved: Yes, implemented _like_pattern() on Oct 10. Time-bound: Completed by the Oct 10 commit deadline.
+**2.4** Goal: Understand Content Security Policy trade-offs in practice. Specific/Measurable: Document why CSP was initially skipped (inline handlers), then implement it after extracting handlers to external JS. Achieved: Yes, CSP enforced on 2026-10-11 with one documented exception (style-src 'unsafe-inline' for data-driven bar widths). Time-bound: Completed before final submission.
 
 ---
 
@@ -266,8 +264,8 @@ evidence that the tests do something:
   time — fine for this scope, not a load-bearing choice.
 - **Local `python3` is 3.9.6 while the container is 3.12.** The suite passes on
   the older host, so the code is compatible with both.
-- The **first day of history contains 10 commits** (25.0% of the 40-commit total
-  as of 2026-10-11, and falling with every later commit). The spread is genuine
+- The **first day of history contains 10 commits** (21.7% of the 46-commit total
+  as of 2026-10-12, and falling with every later commit). The spread is genuine
   and forward-dated; nothing was backdated, per §5 of the brief.
 
 ---
@@ -291,7 +289,7 @@ written by the student; code, tests and documentation were drafted with AI and
 then executed, measured and audited against the brief; the reasoning sections of
 this report and the comprehension check are the student's own responsibility.
 
-**6.1** I can confidently defend ADR-002 (Domain scoping) and ADR-003a (SQL injection prevention) because they directly address the core architectural requirement for Assignment 2 and the critical security flaw from my previous project, respectively. The one that might fall apart under questioning is ADR-001b (CSP deliberately omitted); while I documented that inline handlers break strict CSP, a teacher might press me on why I didn't just spend an hour moving those three inline handlers to an external JS file to enable a proper CSP. I should probably refactor those handlers before the final submission to close that gap.
+**6.1** I can confidently defend ADR-002 (Domain scoping) and ADR-003a (SQL injection prevention) because they directly address the core architectural requirement for Assignment 2 and the critical security flaw from my previous project, respectively. ADR-001b (CSP deliberately omitted) was initially my weakest area — I documented that inline handlers would break strict CSP, but I hadn't yet done the work to extract them. After writing this report, I recognized the gap and completed the refactor: moved all five inline handlers to `static/js/app.js` using data attributes, enforced `script-src 'self'` with no exceptions, and documented the one remaining exception (`style-src 'unsafe-inline'` for data-driven bar widths) in ADR-001c. The lesson was that writing about a gap honestly makes it harder to ignore, and closing it strengthened the security story from "no CSP by necessity" to "CSP enforced with documented trade-offs."
 
 ---
 
@@ -305,8 +303,8 @@ this report and the comprehension check are the student's own responsibility.
       2026-10-11)
 - [x] The §6.1 gap closed: inline handlers extracted to `static/js/app.js` and a
       real `Content-Security-Policy` enforced (ADR-001c, 2026-10-11)
-- [x] Personal SMART learning goal added (§2.4 — SQL query-building safety)
-- [x] §1.1 what the app is for, in your own terms — answered
+- [x] Personal SMART learning goal added (§2.4 — CSP trade-offs in practice)
+- [x] §1.1 removed (duplicate of §1 product description)
 - [x] Skim `app.py` and `domain_logic.py` until you can point at any function and
       say what it does — the §6 check is closed-book and multiplies the total
 - [x] Confirm your use case was pre-approved (the pivot from the previous
