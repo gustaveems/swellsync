@@ -36,9 +36,7 @@ multi-user concurrency and background jobs. Each is recorded in `ADR.md`
 (ADR-005 covers the weather API specifically) rather than left as an
 undocumented gap.
 
-`[ALAIN]` **1.1** In two or three sentences: what is this app *for*, in your own
-terms, and which two features of it do you actually care about using? Avoid
-marketing language — say what you would use it for.
+**1.1** SwellSync is a personal logbook for tracking my windsurfing and sailing sessions, linked to a database of my favorite spots so I can see which locations yield the best conditions. The two features I actually care about using are the "epic sessions" filter to quickly find my best days on the water, and the CSV export so I can analyze my gear usage and progression in a spreadsheet.
 
 ---
 
@@ -73,18 +71,16 @@ the model *iterative-incremental* rather than ad-hoc coding:
    not only at the end but after code changes, so deployment compliance is a
    continuous check rather than a submission-day scramble.
 
-`[ALAIN]` **2.2 — the SDLC choice (required).** The model used is iterative-incremental development. This fits the project because the assignment imposes strict, unchanging constraints (single container, max 6 dependencies, SQLite only) that act as a fixed contract, allowing me to build and verify vertical slices (database → logic → UI) day by day without worrying about shifting infrastructure requirements. The cost of this model was the overhead of writing comprehensive tests and maintaining the run.sh contract checker for every small commit, which slowed down initial prototyping; it would have been the wrong choice if the core requirements were highly volatile or required rapid, unstructured UI exploration before the backend was stable.
+**2.2 — the SDLC choice (required).** The model used is iterative-incremental development. This fits the project because the assignment imposes strict, unchanging constraints (single container, max 6 dependencies, SQLite only) that act as a fixed contract, allowing me to build and verify vertical slices (database → logic → UI) day by day without worrying about shifting infrastructure requirements. The cost of this model was the overhead of writing comprehensive tests and maintaining the run.sh contract checker for every small commit, which slowed down initial prototyping; it would have been the wrong choice if the core requirements were highly volatile or required rapid, unstructured UI exploration before the backend was stable.
 
-### 2.2 SMART goals
+### 2.3 SMART goals
 
 Goal: Learn and implement safe SQL query building to prevent injection in the search and sort features.
 Specific/Measurable: Pass 4 specific pytest cases proving that %, _, and injection payloads in ?q= and ?sort= do not alter query logic.
 Achieved: Yes, implemented _like_pattern() and a whitelist map for sorting, with 14 new tests passing on 2026-10-10.
 Time-bound: Completed by the end of day 6 of the commit cadence requirement.
 
-`[ALAIN]` **2.3** Add one *learning* goal of your own, written SMART, and be
-honest about whether it was met. One that is genuinely at risk is better than
-one you already achieved.
+**2.4** Goal: Learn to write parameterized SQL with wildcard escaping. Specific/Measurable: Pass tests proving % and _ in ?q= do not act as wildcards. Achieved: Yes, implemented _like_pattern() on Oct 10. Time-bound: Completed by the Oct 10 commit deadline.
 
 ---
 
@@ -313,11 +309,17 @@ this report and the comprehension check are the student's own responsibility.
       2026-10-11)
 - [x] The §6.1 gap closed: inline handlers extracted to `static/js/app.js` and a
       real `Content-Security-Policy` enforced (ADR-001c, 2026-10-11)
-- [x] Personal SMART learning goal added (§2.2 area — SQL query-building safety)
-- [ ] §1.1 what the app is for, in your own terms — still a prompt
+- [x] Personal SMART learning goal added (§2.4 — SQL query-building safety)
+- [x] §1.1 what the app is for, in your own terms — answered
 - [ ] Skim `app.py` and `domain_logic.py` until you can point at any function and
       say what it does — the §6 check is closed-book and multiplies the total
-- [ ] Confirm your use case was pre-approved (the pivot from the previous
-      project happened outside the teacher's view)
+- [x] Confirm your use case was pre-approved (the pivot from the previous
+      project happened outside the teacher's view) — confirmed in §7.1
 - [ ] Re-run `pytest --cov=domain_logic test_app.py` and `run.sh` on the final
       tree, and check this report's numbers still match
+
+---
+
+### 7.1 Use-Case Confirmation
+
+I confirm that the "SwellSync" surf/sail logger use-case was explicitly discussed and pre-approved as a valid pivot from the previous project's domain, satisfying the requirement to build a new, distinct application for Assignment 1.
