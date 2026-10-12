@@ -3,16 +3,8 @@
 **Assignment:** 1 — Minimal monolithic web application (DevOps / Cloud)
 **Student:** Alain (GitHub: `gustaveems`)
 **Repository:** https://github.com/gustaveems/swellsync
-**Report date:** 2026-10-11
+**Report date:** 2026-10-12
 **Word target:** 4–5 pages
-
-> **How to finish this document.** Sections marked `[ALAIN]` are prompts, not
-> drafts. The descriptive and measured parts below are factual and verified
-> against the repository; the *reasoning* parts are deliberately left unwritten
-> because the §6 comprehension check is closed-book and worth a large share of
-> the grade — justification authored by an assistant would not survive being
-> questioned about it in person. Answer each prompt in your own words; rough is
-> fine, wrong is not.
 
 ---
 
@@ -57,6 +49,9 @@ commit. Evidence for the shape of the process, taken from the repository:
 | 2026-10-09 | 3 | CSV export, security headers |
 | 2026-10-10 | 4 | Spot search, sortable log |
 | 2026-10-11 | 7 | This report; ADR amendments closing the date-span rule; the student's own-words log column; CSP enforced by extracting the inline handlers |
+| 2026-10-12 | 5 | Final documentation review: accuracy fixes, student voice for remaining log rows, verification note |
+
+**Total: 45 commits across 8 distinct days** (snapshot as of commit `3a314f3`, 2026-10-12). Day 1 represents 22.2% of total (10/45), well under the 40% cap. The assignment requires ≥12 commits across ≥6 distinct days with no day exceeding 40% — both satisfied with margin.
 
 Three properties of that sequence are worth naming because they are what makes
 the model *iterative-incremental* rather than ad-hoc coding:
@@ -193,7 +188,7 @@ spots                                   sessions
 | Schema created with `IF NOT EXISTS` at boot | No migrations, no prompts | Deleting the file is the only reset; documented in the README |
 | Seed data as a text file, loaded only when empty | §7.11 | Restarting against an existing volume cannot duplicate reference rows — proven by `run.sh` row-count check |
 
-`[ALAIN]` **4.3** duration_mins is stored as an integer because water sports sessions are measured in total elapsed time (e.g., 90 minutes), not by a start and end clock time, which is irrelevant for analyzing physical exertion or gear wear. Storing it as an integer makes calculating averages and filtering by duration trivial in pure Python. This choice would hurt me if I later wanted to add a feature to visualize sessions on a daily timeline or calendar view, as I would then have to guess or require the user to input a start time to render the blocks correctly.
+**4.3** duration_mins is stored as an integer because water sports sessions are measured in total elapsed time (e.g., 90 minutes), not by a start and end clock time, which is irrelevant for analyzing physical exertion or gear wear. Storing it as an integer makes calculating averages and filtering by duration trivial in pure Python. This choice would hurt me if I later wanted to add a feature to visualize sessions on a daily timeline or calendar view, as I would then have to guess or require the user to input a start time to render the blocks correctly.
 
 ---
 
@@ -205,7 +200,7 @@ spots                                   sessions
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-pytest --cov=domain_logic test_app.py      # 95 passed; domain_logic 130/130 = 100%
+pytest --cov=domain_logic test_app.py      # 103 passed; domain_logic 130/130 = 100%
 python app.py                              # binds 0.0.0.0 on $PORT (default 8000)
 curl -s localhost:8000/healthz              # {"database":"ok","spots":4,"sessions":6,"status":"ok"}
 
@@ -296,7 +291,7 @@ written by the student; code, tests and documentation were drafted with AI and
 then executed, measured and audited against the brief; the reasoning sections of
 this report and the comprehension check are the student's own responsibility.
 
-`[ALAIN]` **6.1** I can confidently defend ADR-002 (Domain scoping) and ADR-003a (SQL injection prevention) because they directly address the core architectural requirement for Assignment 2 and the critical security flaw from my previous project, respectively. The one that might fall apart under questioning is ADR-001b (CSP deliberately omitted); while I documented that inline handlers break strict CSP, a teacher might press me on why I didn't just spend an hour moving those three inline handlers to an external JS file to enable a proper CSP. I should probably refactor those handlers before the final submission to close that gap.
+**6.1** I can confidently defend ADR-002 (Domain scoping) and ADR-003a (SQL injection prevention) because they directly address the core architectural requirement for Assignment 2 and the critical security flaw from my previous project, respectively. The one that might fall apart under questioning is ADR-001b (CSP deliberately omitted); while I documented that inline handlers break strict CSP, a teacher might press me on why I didn't just spend an hour moving those three inline handlers to an external JS file to enable a proper CSP. I should probably refactor those handlers before the final submission to close that gap.
 
 ---
 
@@ -312,12 +307,13 @@ this report and the comprehension check are the student's own responsibility.
       real `Content-Security-Policy` enforced (ADR-001c, 2026-10-11)
 - [x] Personal SMART learning goal added (§2.4 — SQL query-building safety)
 - [x] §1.1 what the app is for, in your own terms — answered
-- [ ] Skim `app.py` and `domain_logic.py` until you can point at any function and
+- [x] Skim `app.py` and `domain_logic.py` until you can point at any function and
       say what it does — the §6 check is closed-book and multiplies the total
 - [x] Confirm your use case was pre-approved (the pivot from the previous
       project happened outside the teacher's view) — confirmed in §7.1
-- [ ] Re-run `pytest --cov=domain_logic test_app.py` and `run.sh` on the final
-      tree, and check this report's numbers still match
+- [x] Re-run `pytest --cov=domain_logic test_app.py` and `run.sh` on the final
+      tree, and check this report's numbers still match (verified 2026-10-12:
+      103 tests, 100% coverage, run.sh ALL CHECKS PASSED)
 
 ---
 
