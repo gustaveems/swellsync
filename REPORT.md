@@ -153,7 +153,7 @@ once; **referential integrity is the database's job**, so the check cannot be
 forgotten by a future caller; and **invalid input returns 422 with the submitted
 values re-rendered**, so a typo does not destroy what the user typed.
 
-`[ALAIN]` **3.4** The seam ensures that the Spot Directory (Domain 1) remains entirely ignorant of the Session Tracker (Domain 2). Keeping Domain 1 isolated means I can delete, refactor, or move the spots table without touching a single line of session-tracking code, which is exactly the preparation needed for Assignment 2's microservice split. If the spot-delete route simply counted child sessions first in Python, Domain 1 would have to import Domain 2's models or query its tables, creating a tight coupling that would make extracting the Session Tracker into its own service a massive refactoring job later. The benefit is architectural longevity, even if it feels slightly indirect to let the database engine raise an IntegrityError rather than checking it in Python first.
+**3.4** The seam ensures that the Spot Directory (Domain 1) remains entirely ignorant of the Session Tracker (Domain 2). Keeping Domain 1 isolated means I can rework session tracking — add filters, change the schema, export differently — without touching a single line of spot-management code. The asymmetry is real: Domain 2 references spots via `spot_id` and joins for display names, so dropping the spots table would break session code. But Domain 1 never queries sessions, which is the direction that matters for decoupling. If the spot-delete route counted child sessions first in Python, Domain 1 would have to import Domain 2's models or query its tables, creating tight coupling. The benefit is that Domain 1 stays self-contained, even if it feels slightly indirect to let the database engine raise an IntegrityError rather than checking it in Python first.
 
 ---
 
@@ -287,7 +287,8 @@ dated amendments recording the container adoption (2026-10-08), the headers and
 the original CSP omission (2026-10-09, since superseded), the rule that
 user-supplied query values never reach SQL (2026-10-10), and the CSP being
 enforced after the inline handlers were extracted (2026-10-11, ADR-001c). The
-final column of the log is the student's own writing for all twelve rows.
+final column of the log is the student's own writing for rows 1–11; row 12 was
+drafted by the assistant at the student's request.
 
 **Division of labour as it actually happened:** the brief and the assignment
 constraints came from the course; the specification relayed to the assistant was
