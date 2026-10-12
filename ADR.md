@@ -93,7 +93,7 @@ not provide.
 **Status:** Accepted — 2026-10-11
 
 **Context:** ADR-001b declined a CSP because one would have been theatre: the
-templates carried five inline event handlers (two delete confirms, three auto-
+templates carried six inline event handlers (three delete confirms, three auto-
 submitting filters), so `script-src` could only be satisfied by
 `'unsafe-inline'`, which permits exactly the injected-script class of bug the
 policy exists to stop. The same reasoning that made the omission correct also
