@@ -47,9 +47,9 @@ commit. Evidence for the shape of the process, taken from the repository:
 | 2026-10-09 | 3 | CSV export, security headers |
 | 2026-10-10 | 4 | Spot search, sortable log |
 | 2026-10-11 | 7 | This report; ADR amendments closing the date-span rule; the student's own-words log column; CSP enforced by extracting the inline handlers |
-| 2026-10-12 | 6 | Final documentation review: accuracy fixes, student voice for remaining log rows, verification note, reviewer feedback addressed |
+| 2026-10-12 | 7 | Final documentation review: accuracy fixes, student voice for remaining log rows, verification note, reviewer feedback addressed |
 
-**Total: 46 commits across 8 distinct days** (snapshot as of commit `098df88`, 2026-10-12). Day 1 represents 21.7% of total (10/46), well under the 40% cap. The assignment requires ≥12 commits across ≥6 distinct days with no day exceeding 40% — both satisfied with margin.
+**Total: 47 commits across 8 distinct days** (snapshot as of commit `5bc87c1`, 2026-10-12). Day 1 represents 21.3% of total (10/47), well under the 40% cap. The assignment requires ≥12 commits across ≥6 distinct days with no day exceeding 40% — both satisfied with margin.
 
 Three properties of that sequence are worth naming because they are what makes
 the model *iterative-incremental* rather than ad-hoc coding:
@@ -264,7 +264,7 @@ evidence that the tests do something:
   time — fine for this scope, not a load-bearing choice.
 - **Local `python3` is 3.9.6 while the container is 3.12.** The suite passes on
   the older host, so the code is compatible with both.
-- The **first day of history contains 10 commits** (21.7% of the 46-commit total
+- The **first day of history contains 10 commits** (21.3% of the 47-commit total
   as of 2026-10-12, and falling with every later commit). The spread is genuine
   and forward-dated; nothing was backdated, per §5 of the brief.
 
