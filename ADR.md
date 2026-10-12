@@ -254,7 +254,7 @@ application itself is a thin layer of routes over two tables.
 Explicitly out of scope: browser/E2E tests and JavaScript tests.
 
 **Consequences:**
-* (+) The whole suite runs in about two seconds (95 tests, ~1.9 s measured
+* (+) The whole suite runs in about two seconds (103 tests, ~1.6 s measured
    2026-10-11); failures in the logic tier point
    straight at a function, not at a page.
 * (+) Framework glue stays thin by construction — anything worth testing
