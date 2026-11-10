@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · SwellSync</title>
+  <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="config.js"></script>
+  <script src="js/common.js" defer></script>
+  <script src="js/dashboard.js" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <nav class="nav container">
+    <a class="brand" href="index.html">SwellSync</a>
+    <div class="nav-links">
+      <a href="index.html">Dashboard</a>
+      <a href="spots.html">Spots</a>
+      <a href="sessions.html">Sessions</a>
+    </div>
+  </nav>
+</header>
+<main class="container">
+  <div id="flash"></div>
+  <section class="hero">
+    <div>
+      <h1>Water time, logged.</h1>
+      <p class="hero-sub">Your surf &amp; sail sessions, the spots you love, and the conditions that made them great.</p>
+      <div class="cta-row">
+        <a class="btn" href="sessions.html#log-session">Log a session</a>
+        <a class="btn btn-secondary" href="spots.html#add-spot">Add a spot</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="stat-grid">
+    <div class="stat-card"><span class="stat-value" id="stat-spots">…</span><span class="stat-label">spots in the directory</span></div>
+    <div class="stat-card"><span class="stat-value" id="stat-sessions">…</span><span class="stat-label">sessions logged</span></div>
+    <div class="stat-card"><span class="stat-value" id="stat-hours">…</span><span class="stat-label">total water time</span></div>
+    <div class="stat-card"><span class="stat-value" id="stat-rating">…</span><span class="stat-label">average rating</span></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Recent sessions</h2>
+      <a class="btn btn-secondary btn-small" href="sessions.html">All sessions →</a>
+    </div>
+    <p id="recent-notice" class="muted"></p>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Date</th><th>Spot</th><th>Duration</th><th>Rating</th></tr></thead>
+        <tbody id="recent-rows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  SwellSync · two services, each with its own database ·
+  <span class="muted">spots and sessions are served by separate containers</span>
+</footer>
+</body>
+</html>

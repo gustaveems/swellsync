@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sessions · SwellSync</title>
+  <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="config.js"></script>
+  <script src="js/common.js" defer></script>
+  <script src="js/sessions.js" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <nav class="nav container">
+    <a class="brand" href="index.html">SwellSync</a>
+    <div class="nav-links">
+      <a href="index.html">Dashboard</a>
+      <a href="spots.html">Spots</a>
+      <a href="sessions.html">Sessions</a>
+    </div>
+  </nav>
+</header>
+<main class="container">
+  <div id="flash"></div>
+  <p id="list-notice" class="muted"></p>
+
+  <section class="card">
+    <div class="card-head">
+      <h1>Session log</h1>
+      <a class="btn btn-secondary btn-small" id="export-link" href="#">Export CSV</a>
+    </div>
+    <form id="filter-form" class="filter-form inline-form">
+      <label class="field">Spot
+        <select name="spot" id="filter-spot"><option value="">All spots</option></select>
+      </label>
+      <label class="field">Sort
+        <select name="sort" id="filter-sort">
+          <option value="date">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="duration">Longest</option>
+          <option value="rating">Best rated</option>
+        </select>
+      </label>
+      <label class="field"><input type="checkbox" name="epic" id="filter-epic"> Ideal only (4+)</label>
+      <button class="btn btn-secondary btn-small" type="submit">Apply</button>
+    </form>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Date</th><th>Spot</th><th>Duration</th><th>Rating</th><th>Gear</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="session-rows"><tr><td colspan="7" class="muted">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="log-session">
+    <h2 id="form-title">Log a session</h2>
+    <form id="session-form" class="form-grid">
+      <label class="field">Spot
+        <select name="spot_id" id="form-spot" required><option value="">Pick a spot</option></select>
+      </label>
+      <label class="field">Date <input type="date" name="date"></label>
+      <label class="field">Duration (minutes) <input type="number" name="duration_mins" min="1" required></label>
+      <label class="field">Rating (1–5)
+        <select name="wave_or_wind_rating" required>
+          <option value="">Pick</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+      </label>
+      <label class="field">Gear <input name="gear_used" maxlength="120"></label>
+      <label class="field field-wide">Notes <textarea name="notes" rows="3" maxlength="2000"></textarea></label>
+      <div class="field-wide">
+        <button class="btn" type="submit" id="submit-session">Log session</button>
+        <button class="btn btn-secondary" type="button" id="cancel-edit" hidden>Cancel edit</button>
+      </div>
+    </form>
+  </section>
+</main>
+<footer class="site-footer">SwellSync · sessions service · <span class="muted">own database</span></footer>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "spots": [
+    {
+      "name": "Ocean Beach North",
+      "location": "San Francisco, CA",
+      "ideal_wind_dir": "NW offshore",
+      "ideal_swell_ft": 8.0
+    },
+    {
+      "name": "Mavericks",
+      "location": "Half Moon Bay, CA",
+      "ideal_wind_dir": "S offshore",
+      "ideal_swell_ft": 15.0
+    },
+    {
+      "name": "Ho'okipa",
+      "location": "Maui, HI",
+      "ideal_wind_dir": "NE trade wind",
+      "ideal_swell_ft": 6.0
+    },
+    {
+      "name": "Newport Harbor",
+      "location": "Newport Beach, CA",
+      "ideal_wind_dir": "SW sea breeze",
+      "ideal_swell_ft": null
+    }
+  ]
+}
