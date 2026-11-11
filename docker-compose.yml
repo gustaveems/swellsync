@@ -1,0 +1,104 @@
+# SwellSync, the whole system, from a clean clone:
+#   cp .env.example .env      # then set the three passwords in .env
+#   docker compose up --build
+#
+# Containers:
+#   sqlserver   SQL Server 2022 (one instance, one database per service)
+#   db-init     one-off: creates the databases and logins (db/init.sql), then exits
+#   spots       Spot Directory service      -> http://localhost:8001
+#   sessions    Session Tracker service     -> http://localhost:8002
+#   ui          static files via stock nginx (not a service) -> http://localhost:8080
+
+x-mssql-image: &mssql-image mcr.microsoft.com/mssql/server:2022-latest
+
+services:
+  sqlserver:
+    image: *mssql-image
+    # No arm64 build of SQL Server exists. On Apple Silicon, Docker Desktop runs
+    # this image under Rosetta emulation (enable it in Docker Desktop settings).
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  db-init:
+    image: *mssql-image
+    platform: linux/amd64
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+      SPOTS_DB_PASSWORD: ${SPOTS_DB_PASSWORD:?set SPOTS_DB_PASSWORD in .env}
+      SESSIONS_DB_PASSWORD: ${SESSIONS_DB_PASSWORD:?set SESSIONS_DB_PASSWORD in .env}
+    volumes:
+      - ./db/init.sql:/init.sql:ro
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b
+        -v SPOTS_DB_PASSWORD="$$SPOTS_DB_PASSWORD" SESSIONS_DB_PASSWORD="$$SESSIONS_DB_PASSWORD"
+        -i /init.sql
+    restart: "no"
+
+  spots:
+    build:
+      context: ./services/spots
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: swellsync-spots:local
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: "8000"
+      DATABASE_URL: mssql://spots_app:${SPOTS_DB_PASSWORD}@sqlserver:1433/spots_db
+      SESSIONS_URL: http://sessions:8000
+      SESSIONS_TIMEOUT_S: "2"
+      ALLOWED_ORIGIN: http://localhost:8080
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
+  sessions:
+    build:
+      context: ./services/sessions
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: swellsync-sessions:local
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: "8000"
+      DATABASE_URL: mssql://sessions_app:${SESSIONS_DB_PASSWORD}@sqlserver:1433/sessions_db
+      SPOTS_URL: http://spots:8000
+      SPOTS_TIMEOUT_S: "2"
+      ALLOWED_ORIGIN: http://localhost:8080
+    ports:
+      - "8002:8000"
+    restart: unless-stopped
+
+  ui:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./ui:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - spots
+      - sessions
+
+volumes:
+  sqlserver-data:

@@ -1,0 +1,9 @@
+# Build context is services/spots. Only what the image needs is copied by the
+# Dockerfile; this file keeps local clutter out of the context as well.
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+tests/
+.env
+*.db
