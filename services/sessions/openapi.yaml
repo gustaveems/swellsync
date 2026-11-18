@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: SwellSync Session Tracker service
+  version: 1.0.0
+  description: >-
+    Owns the sessions table in its own database. spot_id is a plain reference to
+    a spot in the spots service. Lists and writes call the spots service, bounded
+    by SPOTS_TIMEOUT_S: a list degrades with a notice, a write that needs a spot
+    check fails with 503.
+servers:
+  - url: http://localhost:8002
+    description: Local docker compose
+paths:
+  /health:
+    get:
+      summary: Health of this service's own database
+      operationId: getHealth
+      responses:
+        "200":
+          description: The service can read its own database
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: The service cannot use its own database
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /sessions:
+    get:
+      summary: List sessions, newest first by default
+      operationId: listSessions
+      parameters:
+        - name: spot
+          in: query
+          required: false
+          description: Only sessions at this spot id
+          schema:
+            type: integer
+            minimum: 1
+        - name: sort
+          in: query
+          required: false
+          description: Ordering; unknown values fall back to date
+          schema:
+            type: string
+            enum: [date, oldest, duration, rating]
+            default: date
+        - name: epic
+          in: query
+          required: false
+          description: Only sessions rated 4 or higher when set to any non-empty value
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sessions, with spot names when the spots service answered
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessions, notice]
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Session"
+                  notice:
+                    type: string
+                    nullable: true
+                    description: Set when spot names could not be loaded; spot_name is then null
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+    post:
+      summary: Log a session
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionInput"
+      responses:
+        "201":
+          description: The created session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "503":
+          description: The database or the spots service did not answer; nothing was stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sessions/export.csv:
+    get:
+      summary: Download the filtered session list as CSV
+      operationId: exportSessionsCsv
+      parameters:
+        - name: spot
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [date, oldest, duration, rating]
+        - name: epic
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CSV with a Content-Disposition attachment header
+          content:
+            text/csv:
+              schema:
+                type: string
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+  /sessions/{session_id}:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Read one session
+      operationId: getSession
+      responses:
+        "200":
+          description: The session (spot_name is always null here)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+    put:
+      summary: Replace a session's fields
+      operationId: updateSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionInput"
+      responses:
+        "200":
+          description: The updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "503":
+          description: The database or the spots service did not answer; nothing was changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      summary: Delete a session
+      operationId: deleteSession
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+  /stats:
+    get:
+      summary: Totals, averages and the rating distribution, optionally for one spot
+      operationId: getStats
+      parameters:
+        - name: spot
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Aggregates over the matching sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stats, distribution]
+                properties:
+                  stats:
+                    $ref: "#/components/schemas/Stats"
+                  distribution:
+                    type: object
+                    description: Count of sessions per rating, keys "1" to "5"
+                    additionalProperties:
+                      type: integer
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+components:
+  schemas:
+    Session:
+      type: object
+      required: [id, spot_id, spot_name, date, duration_mins, wave_or_wind_rating, gear_used, notes]
+      properties:
+        id:
+          type: integer
+        spot_id:
+          type: integer
+        spot_name:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+        duration_mins:
+          type: integer
+          minimum: 1
+        wave_or_wind_rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        gear_used:
+          type: string
+          nullable: true
+          maxLength: 120
+        notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+    SessionInput:
+      type: object
+      required: [spot_id, date, duration_mins, wave_or_wind_rating]
+      properties:
+        spot_id:
+          type: integer
+          minimum: 1
+        date:
+          type: string
+          format: date
+          description: Not in the future. Blank defaults to today.
+        duration_mins:
+          type: integer
+          minimum: 1
+        wave_or_wind_rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        gear_used:
+          type: string
+          nullable: true
+          maxLength: 120
+        notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+    Stats:
+      type: object
+      required: [session_count, total_duration_mins, average_duration_mins, average_rating]
+      properties:
+        session_count:
+          type: integer
+        total_duration_mins:
+          type: integer
+        average_duration_mins:
+          type: number
+          nullable: true
+        average_rating:
+          type: number
+          nullable: true
+    Health:
+      type: object
+      required: [status, db, version]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        db:
+          type: string
+          enum: [ok, unreachable]
+        version:
+          type: string
+          description: Git commit SHA the image was built from, or "dev"
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    ValidationError:
+      type: object
+      required: [error, errors]
+      properties:
+        error:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          description: Field name to message
+  responses:
+    BadRequest:
+      description: The body is not a JSON object
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: No session with that id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationFailed:
+      description: One or more fields are invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    DatabaseUnavailable:
+      description: The service cannot reach its database
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
