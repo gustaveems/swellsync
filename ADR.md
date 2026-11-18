@@ -164,7 +164,7 @@ domain-utility module.
 
 ## ADR-003 — SQLite schema: one relational file with enforced integrity
 
-**Status:** Accepted — 2026-10-05
+**Status:** Superseded by [007] — 2026-11-18 (storage moves to SQL Server, one database per service)
 
 **Context:** Storage must be pure SQLite in a configurable location, created
 automatically at startup with no migrations or prompts. Sessions belong to
@@ -293,3 +293,91 @@ types what they observed into the session's `gear_used`/`notes` fields.
 * (→) If added later, the right shape is a new `weather.py` module behind a
   narrow interface, called from the Session Tracker after validation, never
   from the Spot Directory.
+
+## ADR-006 — The split: where the seam is, what crosses it, and whether ADR-002 held
+
+**Status:** Accepted — 2026-11-18
+
+**Context:** Assignment 2 requires one service per feature domain, each in its
+own container with its own database. ADR-002 already located the seam: Domain 1
+(spots) never reads `sessions`, and Domain 2 (sessions) references spots only by
+`spot_id`. The split has to put that seam on the network.
+
+**Decision:**
+1. The seam stays where ADR-002 drew it. `services/spots` owns the `spots` table
+   and `services/sessions` owns the `sessions` table. Each service has its own
+   Dockerfile, its own `requirements.txt`, and its own migrations.
+2. Two HTTP calls cross the seam, and nothing else:
+   * `sessions` → `spots`: `GET /spots` to show spot names in the session list,
+     and `GET /spots/{id}` before a session is created or updated.
+   * `spots` → `sessions`: `GET /sessions?spot={id}` before a spot is deleted, so
+     a spot that still has sessions is refused with 409.
+3. The dashboard and spot detail are composition views in the browser. The
+   static UI calls both services and combines the answers, so the server-side
+   cross-seam flow is the session list and session writes.
+4. Every outbound call has a 2-second timeout (`SPOTS_TIMEOUT_S`,
+   `SESSIONS_TIMEOUT_S`). When the list cannot get spot names, it returns the
+   sessions with `spot_name` null and a `notice`. When a write needs a spot
+   check and the spots service does not answer, the write fails with 503 and
+   nothing is stored.
+5. `domain_logic.py` is copied into both services. Each service stays
+   self-contained and deployable on its own, at the cost of two copies of the
+   validation and statistics code.
+
+**Consequences:**
+* (+) ADR-002 held. Domain 1 code still never queries `sessions`, and Domain 2
+  still touches spots only through `spot_id` and an HTTP lookup.
+* (−) ADR-002 said spot deletion would rely on the database foreign key. That
+  no longer works across the seam, so deletion now asks the sessions service
+  first. That makes the spots service depend on sessions for one endpoint. The
+  dependency is one-way at boot (neither service needs the other to start), so
+  compose does not need a cycle in `depends_on`.
+* (−) Two copies of `domain_logic.py` can drift apart. A shared package would fix
+  this, but would couple the two images at build time.
+* (→) If the seam moved again, the candidates would be the sessions-to-spots
+  name lookup (cache it) or the spot-delete check (move it into the sessions
+  service as a "soft delete" flag). Neither is needed at the current size.
+
+## ADR-007 — Data and migrations: SQL Server, one database per service, forward-only
+
+**Status:** Accepted — 2026-11-18
+
+**Context:** Storage moves from one SQLite file to one serverless SQL Server
+database per service (ADR-003 is superseded). Assignment 2 requires versioned
+migrations that run on startup, record what was applied, and never drop data.
+
+**Decision:**
+1. Migrations are numbered SQL files, `services/<name>/migrations/NNN_*.sql`,
+   applied by a small runner (`db.py`) in filename order. Each file runs in its
+   own transaction and is recorded in a `schema_migrations` table, so a second
+   boot applies nothing. `GO` lines separate T-SQL batches.
+2. A single replica runs the migrations at startup (ADR-008 sets max replicas
+   to 1), so two boots cannot migrate at once.
+3. Seed data is loaded only when the table is empty, so a restart never
+   duplicates it.
+4. Data does not move from the old SQLite file. The local stack starts from the
+   seed file, which contains the demo spots and sessions. A real SQLite file
+   would need an export-and-import step, and none is written, so this is a
+   known limit: the old data is not carried over.
+5. Recovery plan for a bad migration in production:
+   * Migrations are forward-only. A bad one is fixed by a new numbered file, and
+     applied migrations are never edited.
+   * Before a deploy that includes a migration, the Azure SQL database has
+     automatic point-in-time restore, which can return the database to a time
+     before the migration.
+   * To roll back the code, redeploy the previous image by its commit SHA. The
+     older image still runs against the restored schema.
+
+**Consequences:**
+* (+) The runner has no dependency beyond `pymssql`, and each migration is
+  reviewable in one file.
+* (+) Pinning images to commit SHAs makes "which code ran against which schema"
+  traceable.
+* (−) Referential integrity lost at the seam. `sessions.spot_id` has no foreign
+  key. The check happens in code on create and update, and in the spot delete
+  path. A race is possible: a spot could be deleted between the check and the
+  insert. The window is small for one user, and the risk is accepted.
+* (−) No down-migrations. Recovery is restore plus redeploy, which is slower than
+  a script but safe.
+* (→) If the team grows, the migration runner should take an advisory lock so
+  that several replicas cannot run it at the same time.
