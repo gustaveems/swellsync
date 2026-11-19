@@ -1,0 +1,3 @@
+# Test-only dependencies for the spots service. Not installed in the image.
+pytest==8.4.2
+pytest-cov==7.1.0
