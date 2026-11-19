@@ -173,6 +173,36 @@ The suite also drives the SQLite CRUD paths end-to-end through the Flask test
 client against a temporary `DATA_DIR`, and asserts engine-level foreign-key
 and CHECK-constraint enforcement.
 
+### Service tests (Assignment 2)
+
+Each service has its own unit tests, and `tests/integration` runs the two real
+apps against each other over HTTP. The databases are in-memory fakes in
+`tests/support`, so these tests need no SQL Server. The compose stack is what
+proves the SQL itself.
+
+Install the tools once:
+
+```bash
+pip install flask==3.1.3 pymssql==2.3.13 -r services/spots/requirements-dev.txt -r services/sessions/requirements-dev.txt
+```
+
+Run each suite with coverage of the service code only (`.coveragerc` leaves out the tests):
+
+```bash
+cd services/spots && pytest --cov=. --cov-config=../../.coveragerc
+```
+
+```bash
+cd services/sessions && pytest --cov=. --cov-config=../../.coveragerc
+```
+
+```bash
+pytest tests/integration
+```
+
+Measured on 2026-11-19 (`app.py`, `db.py` and `domain_logic.py` together):
+spots **76%**, sessions **76%**. Both are above the 70% target.
+
 ## Project structure
 
 ```
