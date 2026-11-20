@@ -11,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "services" / "spots"))  # so `import db` finds this service
 
 from tests.support.fakes import FakeSpotsDatabase, unused_url  # noqa: E402
 from tests.support.services import build_app, load_service  # noqa: E402

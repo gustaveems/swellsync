@@ -1,0 +1,5 @@
+# Lint rules for the services and the tests. Pyflakes and pycodestyle errors
+# are enforced; line length is not, because the SQL strings are long on purpose.
+[lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
