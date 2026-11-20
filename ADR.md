@@ -381,3 +381,49 @@ migrations that run on startup, record what was applied, and never drop data.
   a script but safe.
 * (→) If the team grows, the migration runner should take an advisory lock so
   that several replicas cannot run it at the same time.
+
+## ADR-009 — Pipeline and testing gates: what CI must pass before a merge
+
+**Status:** Accepted — 2026-11-20
+
+**Context:** Assignment 2 requires a CI job that builds the images on every push
+and pull request, and publishes only from main. The brief also asks for tests,
+coverage, and checks that the documents describe the running system. Each
+service now has unit tests (ADR-004), a cross-seam suite (ADR-006), OpenAPI
+documents, and a `system.yaml`. Nothing yet stops a change that breaks one of
+them. The image build only proves that the image compiles and runs.
+
+**Decision:**
+1. A `ci` workflow runs on every push and pull request, with four jobs:
+   * `lint`: `ruff check` over `services/` and `tests/`, with the rules in `ruff.toml`.
+   * `test`: one job per service (matrix). It runs the service's unit tests and
+     fails below 70% coverage of the service code (`app.py`, `db.py`,
+     `domain_logic.py`; the tests are excluded by `.coveragerc`).
+   * `integration`: the cross-seam suite, where the two real apps call each
+     other over HTTP.
+   * `contracts`: each OpenAPI document must validate. Each running app must
+     serve exactly the operations its document lists, in both directions. Every
+     call in `system.yaml` must be documented by the service it calls.
+2. The databases in tests are in-memory fakes. CI does not start SQL Server.
+   The fakes reject any SQL they do not recognise, so a new query fails loudly.
+3. The image workflow (`images.yml`) still builds on every event and pushes
+   only from main. The publish step itself does not depend on `ci` in another
+   file. The repository owner must mark the `ci` jobs as required status checks
+   on `main`, so a red run blocks the merge.
+4. CI runs on Python 3.12 to match the container base image. Local runs have
+   also passed on Python 3.9 and 3.13.
+
+**Consequences:**
+* (+) A change that breaks a route, a documented call or the seam is caught
+  before merge. The contract check found one real mismatch on its first run.
+* (+) Coverage is measured on the service code, not the tests, so the 70% floor
+  means something.
+* (−) Fakes do not prove the SQL works on SQL Server. The compose stack and the
+  deployed health checks cover that, and a SQL Server job is deferred to the
+  Azure stage.
+* (−) The margin over the floor is small (76% against 70%). A large new module
+  without tests will fail the gate, which is the intent, but it will be noticed.
+* (−) The course's `system.schema.json` is not in the repo yet, so the schema
+  check is skipped and shows as a skip in CI until it arrives.
+* (→) If `ci` jobs ever run slower than a few minutes, the integration suite
+  and the contract suite can move to a separate workflow with the same gates.

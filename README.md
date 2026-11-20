@@ -80,8 +80,10 @@ the session list still loads with a notice, and creating a session returns `503`
 **Live URL:** _not deployed yet — added when the Azure deployment is in place._
 
 **Status:** the service split, Dockerfiles, compose stack and image CI are in
-place. Automated tests with coverage, the Azure deployment and the OpenAPI /
-`system.yaml` documents are still to come.
+place. Each service has unit tests with a 70% coverage gate, a cross-seam
+integration suite, and contract checks for the OpenAPI documents and
+`system.yaml` (`.github/workflows/ci.yml`, see ADR-009). The Azure deployment is
+still to come.
 
 ## Quick start
 
