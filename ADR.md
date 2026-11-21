@@ -408,8 +408,11 @@ them. The image build only proves that the image compiles and runs.
    The fakes reject any SQL they do not recognise, so a new query fails loudly.
 3. The image workflow (`images.yml`) still builds on every event and pushes
    only from main. The publish step itself does not depend on `ci` in another
-   file. The repository owner must mark the `ci` jobs as required status checks
-   on `main`, so a red run blocks the merge.
+   file. The `Main` ruleset on `main` is active and requires the five `ci`
+   checks by name (lint, both unit-test jobs, cross-seam integration, contracts).
+   A red run blocks the merge. It was switched on 2026-11-21; before that the
+   ruleset was disabled and targeted no branch. A test in `tests/contracts`
+   fails if a check name in `ci.yml` drifts from the ruleset's list.
 4. CI runs on Python 3.12 to match the container base image. Local runs have
    also passed on Python 3.9 and 3.13.
 
