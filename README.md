@@ -205,6 +205,21 @@ pytest tests/integration
 Measured on 2026-11-19 (`app.py`, `db.py` and `domain_logic.py` together):
 spots **76%**, sessions **76%**. Both are above the 70% target.
 
+### Merge gate (CI on `main`)
+
+A merge to `main` needs five checks to pass. They are the `ci` workflow jobs
+(`.github/workflows/ci.yml`), and the `Main` ruleset requires them by name:
+
+- `lint`
+- `unit tests spots`
+- `unit tests sessions`
+- `cross-seam integration`
+- `contracts (OpenAPI and system.yaml)`
+
+`tests/contracts/test_ci_workflow.py` fails when a job name in `ci.yml` no
+longer matches this list, so renaming a job also means updating the ruleset.
+The decision is in ADR-009.
+
 ## Project structure
 
 ```
