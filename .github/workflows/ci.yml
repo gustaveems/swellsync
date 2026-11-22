@@ -1,0 +1,63 @@
+# Quality gates on every push and pull request. Each job must pass before a
+# change is merged to main; images.yml only publishes from main.
+name: ci
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tests/requirements.txt
+      - run: ruff check services tests
+
+  test:
+    name: unit tests ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [spots, sessions]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r services/${{ matrix.service }}/requirements.txt -r services/${{ matrix.service }}/requirements-dev.txt
+      - name: Unit tests with the 70% coverage gate
+        working-directory: services/${{ matrix.service }}
+        run: pytest tests --cov=. --cov-config=../../.coveragerc --cov-fail-under=70
+
+  integration:
+    name: cross-seam integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r services/spots/requirements.txt -r services/sessions/requirements.txt -r tests/requirements.txt
+      - run: pytest tests/integration
+
+  contracts:
+    name: contracts (OpenAPI and system.yaml)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r services/spots/requirements.txt -r services/sessions/requirements.txt -r tests/requirements.txt
+      - run: pytest tests/contracts -rs

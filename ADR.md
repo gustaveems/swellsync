@@ -164,7 +164,7 @@ domain-utility module.
 
 ## ADR-003 — SQLite schema: one relational file with enforced integrity
 
-**Status:** Accepted — 2026-10-05
+**Status:** Superseded by [007] — 2026-11-18 (storage moves to SQL Server, one database per service)
 
 **Context:** Storage must be pure SQLite in a configurable location, created
 automatically at startup with no migrations or prompts. Sessions belong to
@@ -293,3 +293,217 @@ types what they observed into the session's `gear_used`/`notes` fields.
 * (→) If added later, the right shape is a new `weather.py` module behind a
   narrow interface, called from the Session Tracker after validation, never
   from the Spot Directory.
+
+## ADR-006 — The split: where the seam is, what crosses it, and whether ADR-002 held
+
+**Status:** Accepted — 2026-11-18
+
+**Context:** Assignment 2 requires one service per feature domain, each in its
+own container with its own database. ADR-002 already located the seam: Domain 1
+(spots) never reads `sessions`, and Domain 2 (sessions) references spots only by
+`spot_id`. The split has to put that seam on the network.
+
+**Decision:**
+1. The seam stays where ADR-002 drew it. `services/spots` owns the `spots` table
+   and `services/sessions` owns the `sessions` table. Each service has its own
+   Dockerfile, its own `requirements.txt`, and its own migrations.
+2. Two HTTP calls cross the seam, and nothing else:
+   * `sessions` → `spots`: `GET /spots` to show spot names in the session list,
+     and `GET /spots/{id}` before a session is created or updated.
+   * `spots` → `sessions`: `GET /sessions?spot={id}` before a spot is deleted, so
+     a spot that still has sessions is refused with 409.
+3. The dashboard and spot detail are composition views in the browser. The
+   static UI calls both services and combines the answers, so the server-side
+   cross-seam flow is the session list and session writes.
+4. Every outbound call has a 2-second timeout (`SPOTS_TIMEOUT_S`,
+   `SESSIONS_TIMEOUT_S`). When the list cannot get spot names, it returns the
+   sessions with `spot_name` null and a `notice`. When a write needs a spot
+   check and the spots service does not answer, the write fails with 503 and
+   nothing is stored.
+5. `domain_logic.py` is copied into both services. Each service stays
+   self-contained and deployable on its own, at the cost of two copies of the
+   validation and statistics code.
+
+**Consequences:**
+* (+) ADR-002 held. Domain 1 code still never queries `sessions`, and Domain 2
+  still touches spots only through `spot_id` and an HTTP lookup.
+* (−) ADR-002 said spot deletion would rely on the database foreign key. That
+  no longer works across the seam, so deletion now asks the sessions service
+  first. That makes the spots service depend on sessions for one endpoint. The
+  dependency is one-way at boot (neither service needs the other to start), so
+  compose does not need a cycle in `depends_on`.
+* (−) Two copies of `domain_logic.py` can drift apart. A shared package would fix
+  this, but would couple the two images at build time.
+* (→) If the seam moved again, the candidates would be the sessions-to-spots
+  name lookup (cache it) or the spot-delete check (move it into the sessions
+  service as a "soft delete" flag). Neither is needed at the current size.
+
+## ADR-006a — Amendment (2026-11-22): the spot path parameter is `spot_id`
+
+**Status:** Accepted — 2026-11-22
+
+**Context:** Decision 2 of ADR-006 wrote the spot lookup as `GET /spots/{id}`.
+The OpenAPI document for spots, `system.yaml`, and the contract test all use
+`{spot_id}`. The contract test found the mismatch in `system.yaml` on 2026-11-20.
+
+**Decision:** The seam call is `GET /spots/{spot_id}`. The meaning is unchanged:
+`sessions` asks `spots` for one spot before a session is written. The name is
+the one the document uses, so the record and the contract agree.
+
+**Consequences:**
+* (+) The written decision matches the document the contract test checks.
+* (−) None for behaviour. Only the name in the record changed.
+
+## ADR-007 — Data and migrations: SQL Server, one database per service, forward-only
+
+**Status:** Accepted — 2026-11-18
+
+**Context:** Storage moves from one SQLite file to one serverless SQL Server
+database per service (ADR-003 is superseded). Assignment 2 requires versioned
+migrations that run on startup, record what was applied, and never drop data.
+
+**Decision:**
+1. Migrations are numbered SQL files, `services/<name>/migrations/NNN_*.sql`,
+   applied by a small runner (`db.py`) in filename order. Each file runs in its
+   own transaction and is recorded in a `schema_migrations` table, so a second
+   boot applies nothing. `GO` lines separate T-SQL batches.
+2. A single replica runs the migrations at startup (ADR-008 sets max replicas
+   to 1), so two boots cannot migrate at once.
+3. Seed data is loaded only when the table is empty, so a restart never
+   duplicates it.
+4. Data does not move from the old SQLite file. The local stack starts from the
+   seed file, which contains the demo spots and sessions. A real SQLite file
+   would need an export-and-import step, and none is written, so this is a
+   known limit: the old data is not carried over.
+5. Recovery plan for a bad migration in production:
+   * Migrations are forward-only. A bad one is fixed by a new numbered file, and
+     applied migrations are never edited.
+   * Before a deploy that includes a migration, the Azure SQL database has
+     automatic point-in-time restore, which can return the database to a time
+     before the migration.
+   * To roll back the code, redeploy the previous image by its commit SHA. The
+     older image still runs against the restored schema.
+
+**Consequences:**
+* (+) The runner has no dependency beyond `pymssql`, and each migration is
+  reviewable in one file.
+* (+) Pinning images to commit SHAs makes "which code ran against which schema"
+  traceable.
+* (−) Referential integrity lost at the seam. `sessions.spot_id` has no foreign
+  key. The check happens in code on create and update, and in the spot delete
+  path. A race is possible: a spot could be deleted between the check and the
+  insert. The window is small for one user, and the risk is accepted.
+* (−) No down-migrations. Recovery is restore plus redeploy, which is slower than
+  a script but safe.
+* (→) If the team grows, the migration runner should take an advisory lock so
+  that several replicas cannot run it at the same time.
+
+## ADR-008 — Hosting: serverless containers and serverless databases on Azure
+
+**Status:** Accepted — 2026-11-22. Deployed to the student's own Azure for Students
+subscription. The first deploy from `main` is pending the GitHub secrets and the
+merge to `main` (see the README, Azure setup).
+
+**Context:** ADR-006 split the system into two services with a seam between
+them, and ADR-007 put each service on its own SQL Server database. Assignment 2
+asks for a hosted system with a public URL, deployed by the course guide. The
+workload is a single user, so the hosting should cost little while idle and
+should not need an always-on server. ADR-007 assumes one replica per service, so
+migrations never run twice at once.
+
+The first deployment was made in the IE group subscription, in `rg-sdd-3b`, with a
+Static Web App for the UI and a service principal planned for the pipeline. The
+course guide places individual work in the student's own subscription and forbids
+service principals for IE accounts. That deployment was not the one submitted, and
+the decisions below replace it.
+
+**Decision:**
+1. Each service runs as an Azure Container App in one environment,
+   `gamsoulas-ieu2024-env`, in `norwayeast`. The apps are
+   `gamsoulas-ieu2024-spots` and `gamsoulas-ieu2024-sessions`.
+2. Images come from GHCR, tagged with the commit SHA by the `images` workflow
+   and built without provenance, so Azure can pull the public packages. A deploy
+   names the SHA it runs, so a rollback is a redeploy of an earlier SHA.
+3. Each service has its own serverless Azure SQL database on the free offer, on
+   the server `gamsoulas-ieu2024-sql2`. The server is in `germanywestcentral`,
+   because Norway East refused to create a SQL server on this subscription. Each
+   service connects as its own contained user, which can reach only its database
+   and run migrations. The first connection after a pause can fail with error
+   40613, so `db.py` retries with backoff for about a minute (ADR-007).
+4. Maximum replicas is 1 for both services (ADR-007, decision 2).
+5. The UI is a Storage static website on `gamsoulasieu2024ui`. The services allow
+   its origin through `ALLOWED_ORIGIN`.
+6. Deploys run only from `main`, after the CI and image workflows pass
+   (`cd.yml`). The pipeline signs in with a user-assigned managed identity,
+   `gamsoulas-ieu2024-github`, through OIDC federated credentials. No service
+   principal and no Azure password is stored in GitHub.
+7. Passwords for the contained users are generated locally and stored only as
+   GitHub secrets. They are not written to the repository or the README.
+
+**Consequences:**
+* (+) Idle cost is close to zero: the database pauses on the free offer and the
+  container scales to zero. That suits one user.
+* (+) The pipeline holds no long-lived Azure secret, only federated trust for the
+  `main` branch.
+* (+) Each image can be traced to a commit, and a rollback is an image redeploy
+  (ADR-007).
+* (−) One replica per service means no horizontal scaling, and a deploy takes a
+  service down briefly while the new revision starts.
+* (−) A cold start after an idle period can take up to a minute, and the first
+  request may return 503 "App port is not ready". The UI has to handle that
+  (course guide, step 8).
+* (−) The SQL server is in a different region from the rest, which adds a
+  cross-region call from the services to the database.
+* (−) The contained users are created by hand, following the README. There is no
+  automated step for them yet.
+* (→) If one service needs to scale out, the migration runner needs an advisory
+  lock first (ADR-007, consequences).
+
+## ADR-009 — Pipeline and testing gates: what CI must pass before a merge
+
+**Status:** Accepted — 2026-11-20
+
+**Context:** Assignment 2 requires a CI job that builds the images on every push
+and pull request, and publishes only from main. The brief also asks for tests,
+coverage, and checks that the documents describe the running system. Each
+service now has unit tests (ADR-004), a cross-seam suite (ADR-006), OpenAPI
+documents, and a `system.yaml`. Nothing yet stops a change that breaks one of
+them. The image build only proves that the image compiles and runs.
+
+**Decision:**
+1. A `ci` workflow runs on every push and pull request, with four jobs:
+   * `lint`: `ruff check` over `services/` and `tests/`, with the rules in `ruff.toml`.
+   * `test`: one job per service (matrix). It runs the service's unit tests and
+     fails below 70% coverage of the service code (`app.py`, `db.py`,
+     `domain_logic.py`; the tests are excluded by `.coveragerc`).
+   * `integration`: the cross-seam suite, where the two real apps call each
+     other over HTTP.
+   * `contracts`: each OpenAPI document must validate. Each running app must
+     serve exactly the operations its document lists, in both directions. Every
+     call in `system.yaml` must be documented by the service it calls.
+2. The databases in tests are in-memory fakes. CI does not start SQL Server.
+   The fakes reject any SQL they do not recognise, so a new query fails loudly.
+3. The image workflow (`images.yml`) still builds on every event and pushes
+   only from main. The publish step itself does not depend on `ci` in another
+   file. The `Main` ruleset on `main` is active and requires the five `ci`
+   checks by name (lint, both unit-test jobs, cross-seam integration, contracts).
+   A red run blocks the merge. It was switched on 2026-11-21; before that the
+   ruleset was disabled and targeted no branch. A test in `tests/contracts`
+   fails if a check name in `ci.yml` drifts from the ruleset's list.
+4. CI runs on Python 3.12 to match the container base image. Local runs have
+   also passed on Python 3.9 and 3.13.
+
+**Consequences:**
+* (+) A change that breaks a route, a documented call or the seam is caught
+  before merge. The contract check found one real mismatch on its first run.
+* (+) Coverage is measured on the service code, not the tests, so the 70% floor
+  means something.
+* (−) Fakes do not prove the SQL works on SQL Server. The compose stack and the
+  deployed health checks cover that, and a SQL Server job is deferred to the
+  Azure stage.
+* (−) The margin over the floor is small (76% against 70%). A large new module
+  without tests will fail the gate, which is the intent, but it will be noticed.
+* (−) The course's `system.schema.json` is not in the repo yet, so the schema
+  check is skipped and shows as a skip in CI until it arrives.
+* (→) If `ci` jobs ever run slower than a few minutes, the integration suite
+  and the contract suite can move to a separate workflow with the same gates.

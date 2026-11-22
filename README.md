@@ -44,6 +44,52 @@ deliberately free of external services.
 Direct dependencies: **3** (`flask`, `pytest`, `pytest-cov`) — see
 `requirements.txt`.
 
+## Assignment 2: the split system (Docker Compose)
+
+The monolith above is split into two services along the seam in ADR-002. Each
+service has its own container, its own database and its own migrations:
+
+| Container | Role | Local URL |
+|---|---|---|
+| `services/spots` | Spot Directory (domain 1) | http://localhost:8001 |
+| `services/sessions` | Session Tracker (domain 2) | http://localhost:8002 |
+| `ui/` (stock `nginx:1.27-alpine`, not a service) | Static pages that call both services | http://localhost:8080 |
+| `sqlserver` + one-off `db-init` | SQL Server 2022, one database and login per service | — |
+
+Run the whole system with one command from a clean clone:
+
+```bash
+cp .env.example .env        # then set the three passwords in .env (never commit .env)
+docker compose up --build
+```
+
+On Apple Silicon, enable Rosetta in Docker Desktop (the SQL Server image is amd64).
+
+Run a single service on its own (it needs a reachable SQL Server and its
+`DATABASE_URL`, and the spots service needs `SESSIONS_URL` to delete spots):
+
+```bash
+docker compose up -d sqlserver db-init
+docker compose up --build spots
+```
+
+Each service exposes `GET /health` (its own database only: `200` ok, `503`
+otherwise). Stopping one service leaves the other working: with spots stopped,
+the session list still loads with a notice, and creating a session returns `503`.
+
+**Live URL:** https://gamsoulasieu2024ui.z1.web.core.windows.net
+
+The UI is a Storage static website. It calls the two services, which run as Azure
+Container Apps in `rg-gamsoulas-ieu2024` (`gamsoulas-ieu2024-spots` and
+`gamsoulas-ieu2024-sessions`) with serverless Azure SQL databases (ADR-008).
+
+**Status:** the service split, Dockerfiles, compose stack and image CI are in
+place. Each service has unit tests with a 70% coverage gate, a cross-seam
+integration suite, and contract checks for the OpenAPI documents and
+`system.yaml` (`.github/workflows/ci.yml`, see ADR-009). The services and the UI
+are deployed. The automated deploy workflow (`cd.yml`) is not yet wired to Azure
+credentials.
+
 ## Quick start
 
 ```bash
@@ -134,6 +180,196 @@ The suite also drives the SQLite CRUD paths end-to-end through the Flask test
 client against a temporary `DATA_DIR`, and asserts engine-level foreign-key
 and CHECK-constraint enforcement.
 
+### Service tests (Assignment 2)
+
+Each service has its own unit tests, and `tests/integration` runs the two real
+apps against each other over HTTP. The databases are in-memory fakes in
+`tests/support`, so these tests need no SQL Server. The compose stack is what
+proves the SQL itself.
+
+Install the tools once:
+
+```bash
+pip install flask==3.1.3 pymssql==2.3.13 -r services/spots/requirements-dev.txt -r services/sessions/requirements-dev.txt
+```
+
+Run each suite with coverage of the service code only (`.coveragerc` leaves out the tests):
+
+```bash
+cd services/spots && pytest --cov=. --cov-config=../../.coveragerc
+```
+
+```bash
+cd services/sessions && pytest --cov=. --cov-config=../../.coveragerc
+```
+
+```bash
+pytest tests/integration
+```
+
+Measured on 2026-11-19 (`app.py`, `db.py` and `domain_logic.py` together):
+spots **76%**, sessions **76%**. Both are above the 70% target.
+
+### Merge gate (CI on `main`)
+
+A merge to `main` needs five checks to pass. They are the `ci` workflow jobs
+(`.github/workflows/ci.yml`), and the `Main` ruleset requires them by name:
+
+- `lint`
+- `unit tests spots`
+- `unit tests sessions`
+- `cross-seam integration`
+- `contracts (OpenAPI and system.yaml)`
+
+`tests/contracts/test_ci_workflow.py` fails when a job name in `ci.yml` no
+longer matches this list, so renaming a job also means updating the ruleset.
+The decision is in ADR-009.
+
+## Azure setup (initial setup, Assignment 2)
+
+The system runs in the student's own Azure for Students subscription, following
+the course guide. Every command used to set it up is below. Passwords are never
+written here or in the repository: the setup generates them into a local file
+with owner-only permissions, and the pipeline reads them from GitHub secrets.
+
+Region: `norwayeast` for everything except the SQL server. Norway East refused to
+create a SQL server on this subscription, so the server is `germanywestcentral`
+(the guide allows the server in a different region).
+
+### 1. Sign in, select the subscription, register providers
+
+```bash
+az login --allow-no-subscriptions
+az account set --subscription <subscription-id>
+az policy assignment list --query "[?contains(displayName,'Allowed resource deployment regions')]"
+for p in Microsoft.App Microsoft.OperationalInsights Microsoft.Sql Microsoft.Storage Microsoft.ManagedIdentity; do
+  az provider register -n "$p"
+done
+az group create -n rg-gamsoulas-ieu2024 -l norwayeast
+```
+
+### 2. UI: storage account with a static website
+
+```bash
+az storage account create -g rg-gamsoulas-ieu2024 -n gamsoulasieu2024ui -l norwayeast \
+  --sku Standard_LRS --kind StorageV2 --allow-blob-public-access true
+az storage blob service-properties update --account-name gamsoulasieu2024ui \
+  --static-website --index-document index.html --404-document 404.html --auth-mode login
+```
+
+### 3. Pipeline identity (OIDC, no service principal)
+
+IE accounts can't create service principals, so the pipeline uses a user-assigned
+managed identity with federated credentials.
+
+```bash
+az identity create -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-github -l norwayeast
+az role assignment create --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal \
+  --role Contributor --scope /subscriptions/<subscription-id>/resourceGroups/rg-gamsoulas-ieu2024
+az identity federated-credential create -g rg-gamsoulas-ieu2024 --identity-name gamsoulas-ieu2024-github \
+  -n github-main-name --issuer https://token.actions.githubusercontent.com \
+  --audiences api://AzureADTokenExchange --subject "repo:gustaveems/swellsync:ref:refs/heads/main"
+az identity federated-credential create -g rg-gamsoulas-ieu2024 --identity-name gamsoulas-ieu2024-github \
+  -n github-main-ids --issuer https://token.actions.githubusercontent.com \
+  --audiences api://AzureADTokenExchange \
+  --subject "repo:gustaveems@<owner-id>/swellsync@<repo-id>:ref:refs/heads/main"
+```
+
+GitHub sends the subject with names or with numeric IDs depending on the repository
+settings, so both forms are registered. The owner and repository IDs come from
+`gh api repos/gustaveems/swellsync`.
+
+### 4. Logs and the Container Apps environment
+
+```bash
+az monitor log-analytics workspace create -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-logs -l norwayeast
+az containerapp env create -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-env -l norwayeast \
+  --logs-workspace-id <workspace-customer-id> --logs-workspace-key <workspace-shared-key>
+```
+
+### 5. SQL server and one serverless database per service
+
+The free offer is used: it fixes the auto-pause at 60 minutes and the size at 32 GB,
+so `--auto-pause-delay` and `--max-size` are not passed.
+
+```bash
+az sql server create -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-sql2 -l germanywestcentral \
+  -u swellsyncadmin -p "$SQL_ADMIN_PASSWORD"
+az sql server firewall-rule create -g rg-gamsoulas-ieu2024 -s gamsoulas-ieu2024-sql2 \
+  -n AllowAzureServices --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+for db in spots sessions; do
+  az sql db create -g rg-gamsoulas-ieu2024 -s gamsoulas-ieu2024-sql2 -n "gamsoulas-ieu2024-$db-db" \
+    --edition GeneralPurpose --family Gen5 --compute-model Serverless --capacity 1 --min-capacity 0.5 \
+    --use-free-limit true --free-limit-exhaustion-behavior AutoPause --backup-storage-redundancy Local
+done
+```
+
+Each service then gets its own contained user, which can reach only its own
+database and run migrations. Run this in each database (not in `master`), after
+opening the server firewall to your own IP for the setup and closing it again:
+
+```sql
+CREATE USER [spots_app] WITH PASSWORD = '<generated, not written here>';
+ALTER ROLE db_ddladmin ADD MEMBER [spots_app];
+ALTER ROLE db_datareader ADD MEMBER [spots_app];
+ALTER ROLE db_datawriter ADD MEMBER [spots_app];
+```
+
+The same for `sessions_app` in `gamsoulas-ieu2024-sessions-db`.
+
+### 6. Container Apps: placeholder first, then the real image
+
+Both apps start on the course placeholder image, then the deploy replaces it.
+
+```bash
+az containerapp create -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-spots --environment gamsoulas-ieu2024-env \
+  --image mcr.microsoft.com/k8se/quickstart:latest --target-port 80 --ingress external \
+  --min-replicas 0 --max-replicas 1 --cpu 0.25 --memory 0.5Gi
+# the sessions app is created the same way with its own name
+```
+
+The connection string is a secret, read through `secretref`. The other service's
+URL and the UI's origin are plain variables:
+
+```bash
+az containerapp secret set -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-spots \
+  --secrets "db-url=mssql://spots_app:<url-encoded-password>@gamsoulas-ieu2024-sql2.database.windows.net:1433/gamsoulas-ieu2024-spots-db"
+az containerapp update -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-spots \
+  --image ghcr.io/gustaveems/swellsync-spots:<commit-sha> \
+  --set-env-vars "PORT=8000" "DATABASE_URL=secretref:db-url" \
+    "SESSIONS_URL=https://gamsoulas-ieu2024-sessions.<environment-domain>" \
+    "ALLOWED_ORIGIN=https://gamsoulasieu2024ui.z1.web.core.windows.net" "APP_VERSION=<commit-sha>"
+az containerapp ingress update -g rg-gamsoulas-ieu2024 -n gamsoulas-ieu2024-spots --target-port 8000 --type external
+```
+
+CORS is handled in the services, not in Container Apps (the ingress CORS setting
+rejects the browser's JSON preflight). Each service reads `ALLOWED_ORIGIN` and
+allows the `Content-Type` header.
+
+### 7. UI upload
+
+The UI is uploaded with `config.js` pointing at the two Container Apps. The deploy
+job does this on every push to `main` (see `.github/workflows/cd.yml`).
+
+### 8. GitHub secrets and variables
+
+Secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
+`SPOTS_DB_PASSWORD`, `SESSIONS_DB_PASSWORD`. Variables: `PREFIX`,
+`RESOURCE_GROUP`, `UI_STORAGE`. Set them with `gh secret set` and `gh variable set`.
+
+### Problems met during setup
+
+- **Failed SQL server name.** A failed create in Norway East reserved
+  `gamsoulas-ieu2024-sql` there, so the server was recreated under `-sql2`.
+- **Empty password in the connection string.** The setup password was read into a
+  shell variable that wasn't exported, so the first connection strings had an
+  empty password and the services failed with error 18456 at boot. The fix was to
+  export the value (`set -a`) before building the strings and restart the
+  revisions.
+- **Subscription on the wrong account.** The first sign-in showed only the IE
+  subscription. The Azure for Students subscription was on another account, and
+  the sign-in had to be repeated with `--allow-no-subscriptions`.
+
 ## Project structure
 
 ```
@@ -176,9 +412,9 @@ app surfaces a friendly error instead of silently destroying history.
 * **Single process, single command.** `python app.py` is the entire runtime;
   there is no worker, no broker, no separate frontend build.
 * **Container = the provided template, not self-authored.** The `Dockerfile`
-  is the course's shared template with its four `TODO` slots filled; writing
-  real Docker orchestration is Assignment 2. Still absent (out of scope):
-  `docker-compose.yml`, GitHub Actions, Terraform/Bicep, Redis/RabbitMQ/Celery.
+  is the course's shared template with its four `TODO` slots filled. Assignment 2
+  adds the split services and `docker-compose.yml` (see above). Out of scope:
+  Terraform/Bicep, Redis/RabbitMQ/Celery.
 * **Domain seam.** Domain 1 (spots) code never queries `sessions`; Domain 2
   references spots only by `spot_id`; all cross-domain math lives in
   `domain_logic.py`. See `ADR-002`.

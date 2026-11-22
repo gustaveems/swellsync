@@ -1,0 +1,8 @@
+# Coverage counts the service code only, not the tests that exercise it.
+[run]
+omit =
+    */tests/*
+    */conftest.py
+
+[report]
+show_missing = True

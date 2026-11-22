@@ -7,17 +7,14 @@
 
   var cfg = window.SWELLSYNC_CONFIG || {};
 
-  // Resolves to { status, data }. A network failure resolves to status 0 with
-  // a readable message, so pages can show a degraded state instead of hanging.
-  function api(base, path, options) {
-    options = options || {};
-    var init = { method: options.method || "GET", headers: {} };
-    if (options.body !== undefined) {
-      init.headers["Content-Type"] = "application/json";
-      init.body = JSON.stringify(options.body);
-    }
-    var url = base + path;
-    return fetch(url, init)
+  // Waits between GET retries while a service wakes up, in milliseconds. After an
+  // idle period Azure starts the container and resumes the paused database, which
+  // takes about a minute; meanwhile it answers 503 "App port is not ready".
+  var WAKE_DELAYS_MS = [2000, 4000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000];
+  var STARTING_UP = "The service is starting up after being idle. This can take about a minute.";
+
+  function once(base, path, init) {
+    return fetch(base + path, init)
       .then(function (res) {
         if (res.status === 204) return { status: 204, data: null };
         return res.json()
@@ -27,6 +24,48 @@
       .catch(function () {
         return { status: 0, data: { error: "Could not reach " + base + ". Is the service running?" } };
       });
+  }
+
+  function wait(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  // Resolves to { status, data }. A network failure resolves to status 0 with
+  // a readable message, so pages can show a degraded state instead of hanging.
+  // GETs retry through a cold start (status 0 or 503) and show a notice while
+  // they wait. Writes are never retried, so a POST cannot be applied twice.
+  function api(base, path, options) {
+    options = options || {};
+    var init = { method: options.method || "GET", headers: {} };
+    if (options.body !== undefined) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(options.body);
+    }
+    if (init.method !== "GET") return once(base, path, init);
+
+    var shownNotice = false;
+    function attempt(n) {
+      return once(base, path, init).then(function (result) {
+        var waking = result.status === 0 || result.status === 503;
+        if (!waking || n >= WAKE_DELAYS_MS.length) {
+          if (shownNotice) clearNotice();
+          return result;
+        }
+        if (!shownNotice) {
+          flash(STARTING_UP + " Retrying…", "info");
+          shownNotice = true;
+        }
+        return wait(WAKE_DELAYS_MS[n]).then(function () { return attempt(n + 1); });
+      });
+    }
+    return attempt(0);
+  }
+
+  function clearNotice() {
+    var box = document.getElementById("flash");
+    if (!box) return;
+    var info = box.querySelector(".flash-info");
+    if (info) box.removeChild(info);
   }
 
   function flash(message, kind) {
@@ -60,7 +99,10 @@
         return field.replace(/_/g, " ") + ": " + data.errors[field];
       }).join(" · ");
     }
-    return data.error || fallback;
+    if (data.error) return data.error;
+    // Azure's own 503 during a cold start has no JSON body.
+    if (result.status === 503) return STARTING_UP + " Try again in a minute.";
+    return fallback;
   }
 
   window.SwellSync = {

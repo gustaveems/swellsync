@@ -1,0 +1,239 @@
+openapi: 3.0.3
+info:
+  title: SwellSync Spot Directory service
+  version: 1.0.0
+  description: >-
+    Owns the spots table in its own database. The DELETE endpoint calls the
+    sessions service to check that a spot has no sessions; that call is bounded
+    by SESSIONS_TIMEOUT_S and returns 503 if it fails.
+servers:
+  - url: http://localhost:8001
+    description: Local docker compose
+paths:
+  /health:
+    get:
+      summary: Health of this service's own database
+      operationId: getHealth
+      responses:
+        "200":
+          description: The service can read its own database
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: The service cannot use its own database
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /spots:
+    get:
+      summary: List spots, optionally searching name or location
+      operationId: listSpots
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive substring of the name or location. % and _ match literally.
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: Spots ordered by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [spots]
+                properties:
+                  spots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Spot"
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+    post:
+      summary: Create a spot
+      operationId: createSpot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpotInput"
+      responses:
+        "201":
+          description: The created spot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Spot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+  /spots/{spot_id}:
+    parameters:
+      - name: spot_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Read one spot
+      operationId: getSpot
+      responses:
+        "200":
+          description: The spot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Spot"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+    put:
+      summary: Replace a spot's fields
+      operationId: updateSpot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpotInput"
+      responses:
+        "200":
+          description: The updated spot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Spot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "503":
+          $ref: "#/components/responses/DatabaseUnavailable"
+    delete:
+      summary: Delete a spot that has no sessions
+      operationId: deleteSpot
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The spot still has sessions in the sessions service
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The database or the sessions service did not answer, so the spot was not deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Spot:
+      type: object
+      required: [id, name, location, ideal_wind_dir, ideal_swell_ft]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          maxLength: 100
+        location:
+          type: string
+          maxLength: 150
+        ideal_wind_dir:
+          type: string
+          nullable: true
+          maxLength: 60
+        ideal_swell_ft:
+          type: number
+          nullable: true
+          minimum: 0
+    SpotInput:
+      type: object
+      required: [name, location]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        location:
+          type: string
+          maxLength: 150
+        ideal_wind_dir:
+          type: string
+          nullable: true
+          maxLength: 60
+        ideal_swell_ft:
+          type: number
+          nullable: true
+          minimum: 0
+    Health:
+      type: object
+      required: [status, db, version]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        db:
+          type: string
+          enum: [ok, unreachable]
+        version:
+          type: string
+          description: Git commit SHA the image was built from, or "dev"
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    ValidationError:
+      type: object
+      required: [error, errors]
+      properties:
+        error:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          description: Field name to message
+  responses:
+    BadRequest:
+      description: The body is not a JSON object
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: No spot with that id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationFailed:
+      description: One or more fields are invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    DatabaseUnavailable:
+      description: The service cannot reach its database
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

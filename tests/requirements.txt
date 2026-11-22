@@ -1,0 +1,7 @@
+# Tools for the CI gates: lint, the integration suite, and the contract checks.
+# The service suites pin their own pytest in services/<name>/requirements-dev.txt.
+ruff==0.14.4
+pytest==8.4.2
+pytest-cov==7.1.0
+openapi-spec-validator==0.7.2
+pyyaml==6.0.2
