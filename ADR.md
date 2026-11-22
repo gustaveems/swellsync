@@ -400,48 +400,64 @@ migrations that run on startup, record what was applied, and never drop data.
 
 ## ADR-008 — Hosting: serverless containers and serverless databases on Azure
 
-**Status:** Proposed — 2026-11-22. Not deployed yet. The Azure resources, the
-deploy workflow and the live URL come after this is accepted.
+**Status:** Accepted — 2026-11-22. Deployed to the student's own Azure for Students
+subscription. The first deploy from `main` is pending the GitHub secrets and the
+merge to `main` (see the README, Azure setup).
 
 **Context:** ADR-006 split the system into two services with a seam between
 them, and ADR-007 put each service on its own SQL Server database. Assignment 2
-asks for a hosted system with a public URL. The workload is a single user, so
-the hosting should cost little while idle and should not need an always-on
-server. ADR-007 also assumes one replica per service, so migrations never run
-twice at once.
+asks for a hosted system with a public URL, deployed by the course guide. The
+workload is a single user, so the hosting should cost little while idle and
+should not need an always-on server. ADR-007 assumes one replica per service, so
+migrations never run twice at once.
+
+The first deployment was made in the IE group subscription, in `rg-sdd-3b`, with a
+Static Web App for the UI and a service principal planned for the pipeline. The
+course guide places individual work in the student's own subscription and forbids
+service principals for IE accounts. That deployment was not the one submitted, and
+the decisions below replace it.
 
 **Decision:**
-1. Each service runs as an Azure Container App in one shared environment,
-   `gamsoulas-ieu2024-env`. The names come from `system.yaml`: `gamsoulas-ieu2024-spots`
-   and `gamsoulas-ieu2024-sessions`.
-2. Images come from GHCR, tagged with the commit SHA by `images.yml`. A deploy
-   names the SHA it runs, so a rollback is redeploying an earlier SHA.
-3. Each service has its own Azure SQL database on the server
-   `gamsoulas-ieu2024-sql`, in the serverless tier, which pauses when idle.
-   The first connection after a pause can fail with error 40613, so `db.py`
-   retries with backoff for about a minute (ADR-007).
+1. Each service runs as an Azure Container App in one environment,
+   `gamsoulas-ieu2024-env`, in `norwayeast`. The apps are
+   `gamsoulas-ieu2024-spots` and `gamsoulas-ieu2024-sessions`.
+2. Images come from GHCR, tagged with the commit SHA by the `images` workflow
+   and built without provenance, so Azure can pull the public packages. A deploy
+   names the SHA it runs, so a rollback is a redeploy of an earlier SHA.
+3. Each service has its own serverless Azure SQL database on the free offer, on
+   the server `gamsoulas-ieu2024-sql2`. The server is in `germanywestcentral`,
+   because Norway East refused to create a SQL server on this subscription. Each
+   service connects as its own contained user, which can reach only its database
+   and run migrations. The first connection after a pause can fail with error
+   40613, so `db.py` retries with backoff for about a minute (ADR-007).
 4. Maximum replicas is 1 for both services (ADR-007, decision 2).
-5. The UI is an Azure Static Web App, `gamsoulas-ieu2024-ui`. It calls the two
-   services directly, and its public URL goes into `system.yaml` and the README.
-6. Deploys run only from `main`, and only after the `ci` checks pass (ADR-009).
-   Nothing deploys from a branch.
+5. The UI is a Storage static website on `gamsoulasieu2024ui`. The services allow
+   its origin through `ALLOWED_ORIGIN`.
+6. Deploys run only from `main`, after the CI and image workflows pass
+   (`cd.yml`). The pipeline signs in with a user-assigned managed identity,
+   `gamsoulas-ieu2024-github`, through OIDC federated credentials. No service
+   principal and no Azure password is stored in GitHub.
+7. Passwords for the contained users are generated locally and stored only as
+   GitHub secrets. They are not written to the repository or the README.
 
 **Consequences:**
-* (+) Idle cost is close to zero: the database pauses and the container can
-  scale down. That suits one user.
-* (+) Each image in the registry can be traced to a commit, and a rollback is
-  an image redeploy (ADR-007).
-* (−) One replica per service means no horizontal scaling, and a deploy takes
-  the service down briefly while the new revision starts.
-* (−) A cold start after an idle period can take up to a minute. The first
-  request after the pause may be slow or fail until the retry succeeds.
-* (−) Deployment depends on a service principal that the course supplies. It
-  is not yet in GitHub secrets, so no deploy job exists yet.
-* (−) The resource group is `rg-sdd-3a` as written in `system.yaml`. Whether
-  that matches the cohort (3A or 3B) still needs checking before resources are
-  created.
-* (→) If one service needs to scale out, the migration runner needs an
-  advisory lock first (ADR-007, consequences).
+* (+) Idle cost is close to zero: the database pauses on the free offer and the
+  container scales to zero. That suits one user.
+* (+) The pipeline holds no long-lived Azure secret, only federated trust for the
+  `main` branch.
+* (+) Each image can be traced to a commit, and a rollback is an image redeploy
+  (ADR-007).
+* (−) One replica per service means no horizontal scaling, and a deploy takes a
+  service down briefly while the new revision starts.
+* (−) A cold start after an idle period can take up to a minute, and the first
+  request may return 503 "App port is not ready". The UI has to handle that
+  (course guide, step 8).
+* (−) The SQL server is in a different region from the rest, which adds a
+  cross-region call from the services to the database.
+* (−) The contained users are created by hand, following the README. There is no
+  automated step for them yet.
+* (→) If one service needs to scale out, the migration runner needs an advisory
+  lock first (ADR-007, consequences).
 
 ## ADR-009 — Pipeline and testing gates: what CI must pass before a merge
 
