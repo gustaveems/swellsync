@@ -503,7 +503,54 @@ them. The image build only proves that the image compiles and runs.
   Azure stage.
 * (−) The margin over the floor is small (76% against 70%). A large new module
   without tests will fail the gate, which is the intent, but it will be noticed.
-* (−) The course's `system.schema.json` is not in the repo yet, so the schema
-  check is skipped and shows as a skip in CI until it arrives.
+* (+) The course's `system.schema.json` has been in the repo since 2026-11-22.
+  The contract suite validates `system.yaml` against it, and the check is no
+  longer skipped.
 * (→) If `ci` jobs ever run slower than a few minutes, the integration suite
   and the contract suite can move to a separate workflow with the same gates.
+
+## ADR-010 — Deliberately not built: authentication for users and between services
+
+**Status:** Accepted (deliberate omission) — 2026-11-22
+
+**Context:** Both services have external ingress, because the UI is static and the
+browser calls them directly (ADR-008). Anyone who finds a service URL can read,
+create, change and delete spots and sessions. The calls across the seam
+(ADR-006) carry no credential either: `spots` trusts any answer from
+`sessions`, and the other way round. A grader may ask why a deployed system has
+no sign-in.
+
+**Decision:** Do not build authentication in Assignment 2. No user accounts, no
+tokens, and no service-to-service credential. The reasons:
+1. The product is a single-user log. There is no second user whose data needs
+   keeping apart, so accounts would protect nothing that exists yet.
+2. Doing it properly is a feature on its own: an identity provider, token checks
+   in both services, CORS and the UI changed to send tokens, and a way to keep
+   the seam calls signed. Building half of it (a shared static key in the UI, for
+   example) would look secure without being secure, because anything in a static
+   UI is public.
+3. The assignment's weight is on the split, the data, the pipeline and the
+   hosting. Time spent there keeps those parts correct and tested.
+
+What limits the exposure instead:
+* CORS allows only the UI's origin (`ALLOWED_ORIGIN`). This stops other websites
+  from calling the services from a visitor's browser. It does not stop a direct
+  request from a script.
+* Every query is parameterised (ADR-003a), and every write is validated
+  (`domain_logic.py`), so a direct request cannot inject SQL or store invalid data.
+* Each service connects to its database as a contained user that can reach only
+  its own database (ADR-008). A compromised service cannot read the other
+  service's data.
+* The data is demo data from the seed files. Nothing personal is stored.
+
+**Consequences:**
+* (−) Anyone with the URL can change or delete the data. Recovery is the
+  database's point-in-time restore (ADR-007).
+* (−) The seam calls can be imitated: a caller could answer for `sessions` only if
+  it could change `SESSIONS_URL`, which needs access to the resource group, so the
+  practical risk is low. It is still not verified.
+* (+) No secret sits in the UI, so there is no false sense of protection.
+* (→) The next step, if the system had more than one user, would be Microsoft
+  Entra ID sign-in in the UI with bearer tokens checked by both services, and
+  internal-only ingress for the seam calls through the Container Apps
+  environment.
