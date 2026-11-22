@@ -55,6 +55,7 @@ main { padding: 28px 20px 48px; min-height: calc(100vh - 56px - 70px); }
 .flash { padding: 10px 14px; border-radius: var(--radius); margin-bottom: 8px; font-size: 0.95rem; }
 .flash-success { background: var(--success-bg); color: var(--success-ink); border: 1px solid #bfe3cd; }
 .flash-error { background: var(--error-bg); color: var(--error-ink); border: 1px solid #f5c6c2; }
+.flash-info { background: #eef4fb; color: #1d3b5c; border: 1px solid #c9dcf0; }
 
 /* Hero */
 .hero {
