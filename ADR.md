@@ -398,6 +398,51 @@ migrations that run on startup, record what was applied, and never drop data.
 * (→) If the team grows, the migration runner should take an advisory lock so
   that several replicas cannot run it at the same time.
 
+## ADR-008 — Hosting: serverless containers and serverless databases on Azure
+
+**Status:** Proposed — 2026-11-22. Not deployed yet. The Azure resources, the
+deploy workflow and the live URL come after this is accepted.
+
+**Context:** ADR-006 split the system into two services with a seam between
+them, and ADR-007 put each service on its own SQL Server database. Assignment 2
+asks for a hosted system with a public URL. The workload is a single user, so
+the hosting should cost little while idle and should not need an always-on
+server. ADR-007 also assumes one replica per service, so migrations never run
+twice at once.
+
+**Decision:**
+1. Each service runs as an Azure Container App in one shared environment,
+   `gamsoulas-ieu2024-env`. The names come from `system.yaml`: `gamsoulas-ieu2024-spots`
+   and `gamsoulas-ieu2024-sessions`.
+2. Images come from GHCR, tagged with the commit SHA by `images.yml`. A deploy
+   names the SHA it runs, so a rollback is redeploying an earlier SHA.
+3. Each service has its own Azure SQL database on the server
+   `gamsoulas-ieu2024-sql`, in the serverless tier, which pauses when idle.
+   The first connection after a pause can fail with error 40613, so `db.py`
+   retries with backoff for about a minute (ADR-007).
+4. Maximum replicas is 1 for both services (ADR-007, decision 2).
+5. The UI is an Azure Static Web App, `gamsoulas-ieu2024-ui`. It calls the two
+   services directly, and its public URL goes into `system.yaml` and the README.
+6. Deploys run only from `main`, and only after the `ci` checks pass (ADR-009).
+   Nothing deploys from a branch.
+
+**Consequences:**
+* (+) Idle cost is close to zero: the database pauses and the container can
+  scale down. That suits one user.
+* (+) Each image in the registry can be traced to a commit, and a rollback is
+  an image redeploy (ADR-007).
+* (−) One replica per service means no horizontal scaling, and a deploy takes
+  the service down briefly while the new revision starts.
+* (−) A cold start after an idle period can take up to a minute. The first
+  request after the pause may be slow or fail until the retry succeeds.
+* (−) Deployment depends on a service principal that the course supplies. It
+  is not yet in GitHub secrets, so no deploy job exists yet.
+* (−) The resource group is `rg-sdd-3a` as written in `system.yaml`. Whether
+  that matches the cohort (3A or 3B) still needs checking before resources are
+  created.
+* (→) If one service needs to scale out, the migration runner needs an
+  advisory lock first (ADR-007, consequences).
+
 ## ADR-009 — Pipeline and testing gates: what CI must pass before a merge
 
 **Status:** Accepted — 2026-11-20
