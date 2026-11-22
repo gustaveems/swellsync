@@ -1,17 +1,16 @@
 # yaml-language-server: $schema=./system.schema.json
-# Draft written from the assignment template. Validate against the course's
-# system.schema.json once it is in the repo (not yet provided).
+# Describes the deployed system. Validated against the course's system.schema.json.
 student: gamsoulas.ieu2024
 prefix: gamsoulas-ieu2024
-public_url: https://zealous-field-0a9922d03.3.azurestaticapps.net
+public_url: https://gamsoulasieu2024ui.z1.web.core.windows.net
 ui:
   path: ui
-  static_web_app: gamsoulas-ieu2024-ui
+  storage_account: gamsoulasieu2024ui
   calls: [spots, sessions]
 azure:
-  resource_group: rg-sdd-3b
+  resource_group: rg-gamsoulas-ieu2024
   container_apps_environment: gamsoulas-ieu2024-env
-  sql_server: gamsoulas-ieu2024-sql
+  sql_server: gamsoulas-ieu2024-sql2
   registry: ghcr.io/gustaveems
 services:
   spots:
@@ -22,12 +21,12 @@ services:
     health: /health
     migrations: services/spots/migrations
     env:
-      PORT: { default: 8000, description: Port the service listens on }
-      DATABASE_URL: { secret: true, description: Connection string of the spots database }
-      SESSIONS_URL: { default: "http://sessions:8000", description: Base URL of the sessions service }
-      SESSIONS_TIMEOUT_S: { default: 2, description: Timeout for calls to sessions }
-      ALLOWED_ORIGIN: { default: "http://localhost:8080", description: Only origin allowed by CORS (the UI) }
-      APP_VERSION: { default: dev, description: Version reported by /health, set to the commit SHA at build }
+      PORT: { default: 8000, description: "Port the service listens on" }
+      DATABASE_URL: { secret: true, description: "Connection string of the spots database" }
+      SESSIONS_URL: { default: "http://sessions:8000", description: "Base URL of the sessions service" }
+      SESSIONS_TIMEOUT_S: { default: 2, description: "Timeout for calls to sessions, in seconds" }
+      ALLOWED_ORIGIN: { default: "http://localhost:8080", description: "Only origin allowed by CORS (the UI)" }
+      APP_VERSION: { default: "dev", description: "Version reported by /health, set to the commit SHA at build" }
     calls:
       - service: sessions
         url_env: SESSIONS_URL
@@ -45,12 +44,12 @@ services:
     health: /health
     migrations: services/sessions/migrations
     env:
-      PORT: { default: 8000, description: Port the service listens on }
-      DATABASE_URL: { secret: true, description: Connection string of the sessions database }
-      SPOTS_URL: { default: "http://spots:8000", description: Base URL of the spots service }
-      SPOTS_TIMEOUT_S: { default: 2, description: Timeout for calls to spots }
-      ALLOWED_ORIGIN: { default: "http://localhost:8080", description: Only origin allowed by CORS (the UI) }
-      APP_VERSION: { default: dev, description: Version reported by /health, set to the commit SHA at build }
+      PORT: { default: 8000, description: "Port the service listens on" }
+      DATABASE_URL: { secret: true, description: "Connection string of the sessions database" }
+      SPOTS_URL: { default: "http://spots:8000", description: "Base URL of the spots service" }
+      SPOTS_TIMEOUT_S: { default: 2, description: "Timeout for calls to spots, in seconds" }
+      ALLOWED_ORIGIN: { default: "http://localhost:8080", description: "Only origin allowed by CORS (the UI)" }
+      APP_VERSION: { default: "dev", description: "Version reported by /health, set to the commit SHA at build" }
     calls:
       - service: spots
         url_env: SPOTS_URL

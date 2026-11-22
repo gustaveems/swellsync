@@ -98,7 +98,10 @@ def test_every_call_url_is_an_env_var_the_caller_declares(system):
 def test_azure_names_share_the_student_prefix(system):
     prefix = system["prefix"]
     assert system["student"].replace(".", "-") == prefix
-    assert system["ui"]["static_web_app"].startswith(prefix)
+    # Storage account names take no hyphens: the prefix without them, then "ui".
+    assert system["ui"]["storage_account"].startswith(prefix.replace("-", ""))
+    assert system["ui"]["storage_account"].endswith("ui")
+    assert system["azure"]["sql_server"].startswith(prefix)
     for name, service in system["services"].items():
         assert service["azure"]["container_app"].startswith(prefix), name
         assert service["azure"]["sql_database"].startswith(prefix), name
