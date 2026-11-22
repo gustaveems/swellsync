@@ -150,6 +150,8 @@ class FakeSessionsDatabase(FakeDatabase):
         super().__init__()
         self.sessions = [dict(s) for s in (sessions or [])]
         self.next_id = max((s["id"] for s in self.sessions), default=0) + 1
+        # Counts updates that set updated_at (migration 002).
+        self.updates_stamped = 0
 
     def run(self, sql, params):
         if sql == "SELECT 1 AS ok":
@@ -185,6 +187,8 @@ class FakeSessionsDatabase(FakeDatabase):
                 if r["id"] == row_id:
                     r.update(spot_id=spot_id, session_date=session_date, duration_mins=duration,
                              wave_or_wind_rating=rating, gear_used=gear, notes=notes)
+                    if "updated_at = SYSUTCDATETIME()" in sql:
+                        self.updates_stamped += 1
                     return [], 1
             return [], 0
         if sql == "DELETE FROM sessions WHERE id = %s":

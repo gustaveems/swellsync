@@ -181,6 +181,12 @@ def test_update_replaces_the_fields(client, database, spots):
     assert next(r for r in database.sessions if r["id"] == 1)["wave_or_wind_rating"] == 3
 
 
+def test_update_records_when_the_session_changed(client, database, spots):
+    # Migration 002 added updated_at; every edit sets it on the server's clock.
+    assert client.put("/sessions/1", json=VALID).status_code == 200
+    assert database.updates_stamped == 1
+
+
 def test_update_checks_existence_before_anything_else(client, spots):
     assert client.put("/sessions/999", json=VALID).status_code == 404
     assert client.put("/sessions/1", data="[]", content_type="application/json").status_code == 400

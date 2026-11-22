@@ -293,7 +293,8 @@ def create_app() -> Flask:
             return error(503, "spots service unavailable, session not saved; try again shortly")
         cur.execute(
             "UPDATE sessions SET spot_id = %s, session_date = %s, duration_mins = %s,"
-            " wave_or_wind_rating = %s, gear_used = %s, notes = %s WHERE id = %s",
+            " wave_or_wind_rating = %s, gear_used = %s, notes = %s,"
+            " updated_at = SYSUTCDATETIME() WHERE id = %s",
             (*_session_values(data), session_id),
         )
         cur.execute("SELECT * FROM sessions WHERE id = %s", (session_id,))
