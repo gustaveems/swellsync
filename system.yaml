@@ -3,13 +3,13 @@
 # system.schema.json once it is in the repo (not yet provided).
 student: gamsoulas.ieu2024
 prefix: gamsoulas-ieu2024
-public_url: https://TBD.azurestaticapps.net
+public_url: https://zealous-field-0a9922d03.3.azurestaticapps.net
 ui:
   path: ui
   static_web_app: gamsoulas-ieu2024-ui
   calls: [spots, sessions]
 azure:
-  resource_group: rg-sdd-3a
+  resource_group: rg-sdd-3b
   container_apps_environment: gamsoulas-ieu2024-env
   sql_server: gamsoulas-ieu2024-sql
   registry: ghcr.io/gustaveems

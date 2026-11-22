@@ -77,13 +77,18 @@ Each service exposes `GET /health` (its own database only: `200` ok, `503`
 otherwise). Stopping one service leaves the other working: with spots stopped,
 the session list still loads with a notice, and creating a session returns `503`.
 
-**Live URL:** _not deployed yet — added when the Azure deployment is in place._
+**Live URL:** https://zealous-field-0a9922d03.3.azurestaticapps.net
+
+The UI is an Azure Static Web App. It calls the two services, which run as Azure
+Container Apps in `rg-sdd-3b` (`gamsoulas-ieu2024-spots` and
+`gamsoulas-ieu2024-sessions`) with serverless Azure SQL databases (ADR-008).
 
 **Status:** the service split, Dockerfiles, compose stack and image CI are in
 place. Each service has unit tests with a 70% coverage gate, a cross-seam
 integration suite, and contract checks for the OpenAPI documents and
-`system.yaml` (`.github/workflows/ci.yml`, see ADR-009). The Azure deployment is
-still to come.
+`system.yaml` (`.github/workflows/ci.yml`, see ADR-009). The services and the UI
+are deployed. The automated deploy workflow (`cd.yml`) is not yet wired to Azure
+credentials.
 
 ## Quick start
 
