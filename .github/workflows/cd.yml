@@ -1,75 +1,103 @@
-# Deploy to Azure after images are published from main. Only main deploys.
-# A deploy runs only when the `ci` checks also passed for the same commit
-# (ADR-009), and it names the commit SHA image, so a rollback is a redeploy.
+# Deploy on push to main (course guide, step 8). CI and the image build are
+# called first; the deploy job runs only if both pass. Sign-in is OIDC with the
+# user-assigned managed identity <prefix>-github: no password for Azure is stored.
 #
-# Needs one repository secret, AZURE_CREDENTIALS: the JSON that
-# `az ad sp create-for-rbac --sdk-auth` prints (or the course's principal).
+# Repository variables: PREFIX, RESOURCE_GROUP, UI_STORAGE.
+# Repository secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+# SPOTS_DB_PASSWORD, SESSIONS_DB_PASSWORD (the contained users' passwords).
 name: cd
 
 on:
-  workflow_run:
-    workflows: [images]
-    types: [completed]
+  push:
     branches: [main]
 
 permissions:
   contents: read
 
-env:
-  RESOURCE_GROUP: rg-sdd-3b
-  ENVIRONMENT: gamsoulas-ieu2024-env
-  REGISTRY: ghcr.io/${{ github.repository_owner }}
-
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    uses: ./.github/workflows/images.yml
+    permissions:
+      contents: read
+      packages: write
+
   deploy:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: [ci, images]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     env:
-      SHA: ${{ github.event.workflow_run.head_sha }}
+      SHA: ${{ github.sha }}
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+      RG: ${{ vars.RESOURCE_GROUP }}
+      PREFIX: ${{ vars.PREFIX }}
+      SQL_SERVER: gamsoulas-ieu2024-sql2.database.windows.net
     steps:
-      - name: Require ci to have passed for this commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          conclusion=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci --commit "$SHA" \
-            --json conclusion --jq '.[0].conclusion')
-          if [ "$conclusion" != "success" ]; then
-            echo "ci for $SHA is '$conclusion', not success. Not deploying."
-            exit 1
-          fi
-
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.SHA }}
 
-      - name: Azure login
+      - name: Azure sign-in (OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Install the containerapp extension
         run: az extension add -n containerapp --upgrade -y -o none
 
-      - name: Point both services at the new image
+      - name: Point both Container Apps at this commit's image, with their database secret
+        env:
+          SPOTS_DB_PASSWORD: ${{ secrets.SPOTS_DB_PASSWORD }}
+          SESSIONS_DB_PASSWORD: ${{ secrets.SESSIONS_DB_PASSWORD }}
         run: |
-          for svc in spots sessions; do
-            az containerapp update -g "$RESOURCE_GROUP" -n "gamsoulas-ieu2024-$svc" \
-              --image "$REGISTRY/swellsync-$svc:$SHA" --set-env-vars "APP_VERSION=$SHA" -o none
-          done
+          set -e
+          DOM=$(az containerapp env show -g "$RG" -n "$PREFIX-env" --query properties.defaultDomain -o tsv)
+          SPOTS_URL="https://$PREFIX-spots.$DOM"
+          SESSIONS_URL="https://$PREFIX-sessions.$DOM"
+          UI_ORIGIN=$(az storage account show -g "$RG" -n "$UI_STORAGE" --query primaryEndpoints.web -o tsv | sed 's:/$::')
+          az containerapp secret set -g "$RG" -n "$PREFIX-spots" -o none --secrets \
+            "db-url=mssql://spots_app:$(python3 -c 'import urllib.parse,os;print(urllib.parse.quote(os.environ["SPOTS_DB_PASSWORD"],safe=""))')@$SQL_SERVER:1433/$PREFIX-spots-db"
+          az containerapp secret set -g "$RG" -n "$PREFIX-sessions" -o none --secrets \
+            "db-url=mssql://sessions_app:$(python3 -c 'import urllib.parse,os;print(urllib.parse.quote(os.environ["SESSIONS_DB_PASSWORD"],safe=""))')@$SQL_SERVER:1433/$PREFIX-sessions-db"
+          az containerapp update -g "$RG" -n "$PREFIX-spots" -o none \
+            --image "$REGISTRY/swellsync-spots:$SHA" \
+            --set-env-vars "PORT=8000" "DATABASE_URL=secretref:db-url" "SESSIONS_URL=$SESSIONS_URL" \
+              "ALLOWED_ORIGIN=$UI_ORIGIN" "APP_VERSION=$SHA"
+          az containerapp update -g "$RG" -n "$PREFIX-sessions" -o none \
+            --image "$REGISTRY/swellsync-sessions:$SHA" \
+            --set-env-vars "PORT=8000" "DATABASE_URL=secretref:db-url" "SPOTS_URL=$SPOTS_URL" \
+              "ALLOWED_ORIGIN=$UI_ORIGIN" "APP_VERSION=$SHA"
 
-      - name: Health check, both services
+      - name: Write ui/config.js with the service addresses, then upload the UI
         run: |
+          set -e
+          DOM=$(az containerapp env show -g "$RG" -n "$PREFIX-env" --query properties.defaultDomain -o tsv)
+          cat > ui/config.js <<EOF
+          // Written by the cd pipeline for this deployment.
+          window.SWELLSYNC_CONFIG = {
+            spotsUrl: "https://$PREFIX-spots.$DOM",
+            sessionsUrl: "https://$PREFIX-sessions.$DOM"
+          };
+          EOF
+          KEY=$(az storage account keys list -g "$RG" -n "$UI_STORAGE" --query "[0].value" -o tsv)
+          az storage blob upload-batch -d '$web' -s ui --account-name "$UI_STORAGE" --account-key "$KEY" --overwrite -o none
+
+      - name: Health check, both services, for a few minutes
+        run: |
+          set -e
+          DOM=$(az containerapp env show -g "$RG" -n "$PREFIX-env" --query properties.defaultDomain -o tsv)
           for svc in spots sessions; do
-            fqdn=$(az containerapp show -g "$RESOURCE_GROUP" -n "gamsoulas-ieu2024-$svc" \
-              --query properties.configuration.ingress.fqdn -o tsv)
-            for attempt in 1 2 3 4 5 6; do
-              code=$(curl -s -o /tmp/health.json -w "%{http_code}" "https://$fqdn/health" || true)
-              if [ "$code" = "200" ] && grep -q "$SHA" /tmp/health.json; then
-                echo "$svc healthy at $SHA"
-                break
-              fi
-              echo "$svc attempt $attempt: HTTP $code, waiting for the new revision"
-              sleep 20
-              if [ "$attempt" = "6" ]; then echo "$svc did not become healthy"; exit 1; fi
+            url="https://$PREFIX-$svc.$DOM/health"
+            ok=0
+            for attempt in $(seq 1 20); do
+              body=$(curl -s -m 30 "$url" || true)
+              if echo "$body" | grep -q "\"version\":\"$SHA\""; then ok=1; echo "$svc healthy at $SHA"; break; fi
+              echo "$svc attempt $attempt: waiting ($body)"
+              sleep 15
             done
+            if [ "$ok" != "1" ]; then echo "$svc never reported $SHA"; exit 1; fi
           done
