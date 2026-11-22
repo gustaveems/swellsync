@@ -338,6 +338,22 @@ own container with its own database. ADR-002 already located the seam: Domain 1
   name lookup (cache it) or the spot-delete check (move it into the sessions
   service as a "soft delete" flag). Neither is needed at the current size.
 
+## ADR-006a — Amendment (2026-11-22): the spot path parameter is `spot_id`
+
+**Status:** Accepted — 2026-11-22
+
+**Context:** Decision 2 of ADR-006 wrote the spot lookup as `GET /spots/{id}`.
+The OpenAPI document for spots, `system.yaml`, and the contract test all use
+`{spot_id}`. The contract test found the mismatch in `system.yaml` on 2026-11-20.
+
+**Decision:** The seam call is `GET /spots/{spot_id}`. The meaning is unchanged:
+`sessions` asks `spots` for one spot before a session is written. The name is
+the one the document uses, so the record and the contract agree.
+
+**Consequences:**
+* (+) The written decision matches the document the contract test checks.
+* (−) None for behaviour. Only the name in the record changed.
+
 ## ADR-007 — Data and migrations: SQL Server, one database per service, forward-only
 
 **Status:** Accepted — 2026-11-18
