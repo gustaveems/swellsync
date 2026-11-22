@@ -53,7 +53,7 @@ services:
     calls:
       - service: spots
         url_env: SPOTS_URL
-        endpoints: ["GET /spots", "GET /spots/{spot_id}"]
+        endpoints: ["GET /spots", "GET /spots/{id}"]
         timeout_s: 2
         on_failure: Session lists are returned with spot_name null and a notice; creating or editing a session returns 503 and nothing is stored.
     azure:
