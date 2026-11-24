@@ -368,7 +368,8 @@ migrations that run on startup, record what was applied, and never drop data.
    own transaction and is recorded in a `schema_migrations` table, so a second
    boot applies nothing. `GO` lines separate T-SQL batches.
 2. A single replica runs the migrations at startup (ADR-008 sets max replicas
-   to 1), so two boots cannot migrate at once.
+   to 1), so two boots cannot migrate at once. *Replaced by ADR-007a: a boot
+   lock now enforces this in the database.*
 3. Seed data is loaded only when the table is empty, so a restart never
    duplicates it.
 4. Data does not move from the old SQLite file. The local stack starts from the
@@ -397,6 +398,39 @@ migrations that run on startup, record what was applied, and never drop data.
   a script but safe.
 * (→) If the team grows, the migration runner should take an advisory lock so
   that several replicas cannot run it at the same time.
+
+## ADR-007a — Amendment (2026-11-24): a boot lock for migrations and seeding, and scripted SQL users
+
+**Status:** Accepted — 2026-11-24. Replaces decision 2 of ADR-007 and the last
+consequence of ADR-008.
+
+**Context:** ADR-007 relied on there being one replica, so that two boots never
+migrate at once. Nothing in the code enforced that: a revision change, or anyone
+raising the replica count, could start two boots together. The contained SQL
+users were also created by hand (ADR-008), so the setup could not be repeated
+exactly.
+
+**Decision:**
+1. Each service takes an exclusive SQL Server application lock
+   (`sp_getapplock`, owned by the session) before it migrates and seeds, and
+   releases it afterwards (`db.boot_lock`). A second replica waits up to two
+   minutes, then finds nothing left to apply. If the lock is not granted, the
+   boot fails instead of migrating without it.
+2. Maximum replicas stays at 1, because the course guide sets "minimum 0 and
+   maximum 1 replicas" and it caps the cost. With the lock, scaling out is a
+   configuration change, not a code change.
+3. `scripts/azure/create_sql_users.py` creates each contained user with the three
+   roles it needs, or updates its password if it exists. Passwords are read from
+   the environment, never from the command line.
+
+**Consequences:**
+* (+) Proved on SQL Server 2022 (`docs/evidence/boot-lock-and-sql-users.md`):
+  without the lock, a second replica booting at the same time crashed with
+  error 2714; with it, the second waited and applied nothing.
+* (+) The users can be recreated, and a password rotated, with one command.
+* (−) A boot can wait up to two minutes for the lock if another replica is slow.
+* (−) The script is still run by hand, with the admin password. Putting the admin
+  password in the pipeline would be a larger risk than the manual step.
 
 ## ADR-008 — Hosting: serverless containers and serverless databases on Azure
 
@@ -453,11 +487,12 @@ the decisions below replace it.
   request may return 503 "App port is not ready". The UI has to handle that
   (course guide, step 8).
 * (−) The SQL server is in a different region from the rest, which adds a
-  cross-region call from the services to the database.
+  cross-region call from the services to the database. The course guide allows
+  this ("the server can be in a different region from the rest").
 * (−) The contained users are created by hand, following the README. There is no
-  automated step for them yet.
+  automated step for them yet. *Scripted since ADR-007a.*
 * (→) If one service needs to scale out, the migration runner needs an advisory
-  lock first (ADR-007, consequences).
+  lock first (ADR-007, consequences). *Done in ADR-007a.*
 
 ## ADR-009 — Pipeline and testing gates: what CI must pass before a merge
 
