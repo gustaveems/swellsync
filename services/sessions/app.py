@@ -139,25 +139,27 @@ def create_app() -> Flask:
         if conn is not None:
             conn.close()
 
-    # Boot: apply pending migrations, then seed once if the table is empty.
+    # Boot: under the boot lock, apply pending migrations, then seed once if the
+    # table is empty. The lock stops two replicas doing either at the same time.
     # Seed rows name spots by their position (1..4), which matches the identity
     # values the spots service assigns on its own first boot.
     boot = dbmod.connect(database_url)
     try:
-        dbmod.migrate(boot)
-        cur = boot.cursor()
-        cur.execute("SELECT COUNT(*) AS c FROM sessions")
-        if cur.fetchone()["c"] == 0 and SEED_FILE.exists():
-            seed = json.loads(SEED_FILE.read_text(encoding="utf-8"))["sessions"]
-            for item in seed:
-                cur.execute(
-                    "INSERT INTO sessions (spot_id, session_date, duration_mins,"
-                    " wave_or_wind_rating, gear_used, notes) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (item["spot"], date.fromisoformat(item["date"]), item["duration_mins"],
-                     item["wave_or_wind_rating"], item.get("gear_used"), item.get("notes")),
-                )
-            boot.commit()
-            log.info("seeded %d sessions", len(seed))
+        with dbmod.boot_lock(boot):
+            dbmod.migrate(boot)
+            cur = boot.cursor()
+            cur.execute("SELECT COUNT(*) AS c FROM sessions")
+            if cur.fetchone()["c"] == 0 and SEED_FILE.exists():
+                seed = json.loads(SEED_FILE.read_text(encoding="utf-8"))["sessions"]
+                for item in seed:
+                    cur.execute(
+                        "INSERT INTO sessions (spot_id, session_date, duration_mins,"
+                        " wave_or_wind_rating, gear_used, notes) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (item["spot"], date.fromisoformat(item["date"]), item["duration_mins"],
+                         item["wave_or_wind_rating"], item.get("gear_used"), item.get("notes")),
+                    )
+                boot.commit()
+                log.info("seeded %d sessions", len(seed))
     finally:
         boot.close()
 

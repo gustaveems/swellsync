@@ -305,8 +305,18 @@ done
 ```
 
 Each service then gets its own contained user, which can reach only its own
-database and run migrations. Run this in each database (not in `master`), after
-opening the server firewall to your own IP for the setup and closing it again:
+database and run migrations. Open the server firewall to your own IP for the
+setup, run the script, and close the firewall again. Running it again is safe,
+and it is how a password is rotated (then update that app's `db-url` secret):
+
+```bash
+export SQL_ADMIN_PASSWORD=... SPOTS_DB_PASSWORD=... SESSIONS_DB_PASSWORD=...
+python scripts/azure/create_sql_users.py \
+  --server gamsoulas-ieu2024-sql2.database.windows.net --admin swellsyncadmin
+```
+
+The script runs this in each database (not in `master`). The first setup ran it by
+hand:
 
 ```sql
 CREATE USER [spots_app] WITH PASSWORD = '<generated, not written here>';

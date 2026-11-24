@@ -36,6 +36,12 @@ def test_boot_seeds_an_empty_database_once(spots_module, monkeypatch):
     assert len(database.spots) == 4, "a second boot must not seed again"
 
 
+def test_boot_migrates_and_seeds_under_the_boot_lock(spots_module, monkeypatch):
+    database = FakeSpotsDatabase()
+    build_app(spots_module, database, monkeypatch)
+    assert (database.locks_taken, database.locks_released) == (1, 1)
+
+
 # -- health -------------------------------------------------------------------
 
 def test_health_reports_ok_when_own_database_answers(client):

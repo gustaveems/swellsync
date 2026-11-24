@@ -103,8 +103,8 @@ Measured at the end: spots 39 tests, 82% coverage; sessions 58 tests, 84%; 12 in
 ## 6. What is not done, and why
 
 * **No authentication** (ADR-010). Anyone with a service URL can change the data. CORS limits browsers, and parameterised queries and validation limit what a direct request can do, but it is not access control. This is a deliberate omission for a single-user demo, and the ADR names what the next step would be.
-* **One replica per service**, so a deploy takes a service down briefly and nothing scales out. The migration runner would need a lock first (ADR-007).
-* **The SQL server is in another region** from the apps, which adds latency to every query.
-* **The contained SQL users are created by hand**, following the README. No pipeline step does it.
+* **One replica per service**, as the course guide sets it. Nothing scales out, but scaling out no longer needs code: since ADR-007a each boot migrates and seeds under a SQL Server application lock. On SQL Server 2022, two replicas booting together without the lock made the second crash with error 2714; with it, the second waited and applied nothing (`docs/evidence/boot-lock-and-sql-users.md`).
+* **The SQL server is in another region** from the apps, which adds latency to every query. The guide allows this, and Norway East refused the server.
+* **The contained SQL users are set up by a script run by hand** (`scripts/azure/create_sql_users.py`, ADR-007a). It is repeatable and rotates passwords. It is not in the pipeline, because the pipeline would then need the SQL admin password.
 * **The seam race** between the spot check and the session write is accepted (ADR-007).
 * **My own mistakes.** I deployed first to the wrong subscription, an empty password went into the first connection strings (the services failed at boot with error 18456 until I fixed the secrets), and I needed a second sign-in to find the right subscription. The README records these.
