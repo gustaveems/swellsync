@@ -105,22 +105,24 @@ def create_app() -> Flask:
         if conn is not None:
             conn.close()
 
-    # Boot: apply pending migrations, then seed once if the table is empty.
+    # Boot: under the boot lock, apply pending migrations, then seed once if the
+    # table is empty. The lock stops two replicas doing either at the same time.
     boot = dbmod.connect(database_url)
     try:
-        dbmod.migrate(boot)
-        cur = boot.cursor()
-        cur.execute("SELECT COUNT(*) AS c FROM spots")
-        if cur.fetchone()["c"] == 0 and SEED_FILE.exists():
-            for spot in json.loads(SEED_FILE.read_text(encoding="utf-8"))["spots"]:
-                cur.execute(
-                    "INSERT INTO spots (name, location, ideal_wind_dir, ideal_swell_ft)"
-                    " VALUES (%s, %s, %s, %s)",
-                    (spot["name"], spot["location"], spot.get("ideal_wind_dir"),
-                     spot.get("ideal_swell_ft")),
-                )
-            boot.commit()
-            log.info("seeded %d spots", len(json.loads(SEED_FILE.read_text())["spots"]))
+        with dbmod.boot_lock(boot):
+            dbmod.migrate(boot)
+            cur = boot.cursor()
+            cur.execute("SELECT COUNT(*) AS c FROM spots")
+            if cur.fetchone()["c"] == 0 and SEED_FILE.exists():
+                for spot in json.loads(SEED_FILE.read_text(encoding="utf-8"))["spots"]:
+                    cur.execute(
+                        "INSERT INTO spots (name, location, ideal_wind_dir, ideal_swell_ft)"
+                        " VALUES (%s, %s, %s, %s)",
+                        (spot["name"], spot["location"], spot.get("ideal_wind_dir"),
+                         spot.get("ideal_swell_ft")),
+                    )
+                boot.commit()
+                log.info("seeded %d spots", len(json.loads(SEED_FILE.read_text())["spots"]))
     finally:
         boot.close()
 

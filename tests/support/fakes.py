@@ -54,7 +54,14 @@ class _Cursor:
         if self._db.down:
             raise pymssql.Error("server unreachable")
         normalised = " ".join(sql.split())
-        self._rows, self.rowcount = self._db.run(normalised, tuple(params))
+        if "sp_getapplock" in normalised:
+            self._db.locks_taken += 1
+            self._rows, self.rowcount = [{"r": 0}], 0
+        elif normalised.startswith("EXEC sp_releaseapplock"):
+            self._db.locks_released += 1
+            self._rows, self.rowcount = [], 0
+        else:
+            self._rows, self.rowcount = self._db.run(normalised, tuple(params))
 
     def fetchone(self):
         return self._rows[0] if self._rows else None
@@ -88,6 +95,9 @@ class FakeDatabase:
         self.commits = 0
         self.rollbacks = 0
         self.closed = 0
+        # The boot lock (db.boot_lock) is answered here for every service.
+        self.locks_taken = 0
+        self.locks_released = 0
 
     def connect(self, url, attempts=8):
         if self.down:

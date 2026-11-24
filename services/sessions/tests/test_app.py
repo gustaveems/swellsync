@@ -33,6 +33,12 @@ def test_boot_seeds_six_sessions_once(sessions_module, monkeypatch):
     assert len(database.sessions) == 6, "a second boot must not seed again"
 
 
+def test_boot_migrates_and_seeds_under_the_boot_lock(sessions_module, monkeypatch):
+    database = FakeSessionsDatabase()
+    build_app(sessions_module, database, monkeypatch)
+    assert (database.locks_taken, database.locks_released) == (1, 1)
+
+
 def test_health_reports_ok_when_own_database_answers(client):
     assert client.get("/health").get_json() == {"status": "ok", "db": "ok", "version": "dev"}
 

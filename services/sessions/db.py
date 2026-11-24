@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -19,6 +20,8 @@ log = logging.getLogger("db")
 MIGRATIONS_DIR = Path(__file__).with_name("migrations")
 # T-SQL batch separator; migration files may split statements with GO lines.
 _GO_RE = re.compile(r"^\s*GO\s*$", re.MULTILINE)
+# Name of the SQL Server application lock held while a replica migrates and seeds.
+BOOT_LOCK = "swellsync_boot"
 
 
 def parse_database_url(url: str) -> dict:
@@ -51,6 +54,35 @@ def connect(url: str, attempts: int = 8):
             time.sleep(delay)
             delay = min(delay * 2, 8.0)
     raise RuntimeError("unreachable")
+
+
+@contextmanager
+def boot_lock(conn, timeout_ms: int = 120_000):
+    """Hold an exclusive SQL Server application lock while migrating and seeding.
+
+    Without it, two replicas booting at once could both see a migration as
+    pending, or both see an empty table and seed it twice. The second replica
+    waits here until the first is done, then finds nothing left to do. The lock
+    belongs to the session, so closing the connection also releases it.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        "SET NOCOUNT ON; DECLARE @r INT; EXEC @r = sp_getapplock @Resource = %s,"
+        " @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = %s; SELECT @r AS r",
+        (BOOT_LOCK, timeout_ms),
+    )
+    row = cur.fetchone()
+    if row is None or row["r"] < 0:
+        code = None if row is None else row["r"]
+        raise RuntimeError(f"could not take the boot lock (sp_getapplock returned {code})")
+    log.info("boot lock taken")
+    try:
+        yield
+    finally:
+        try:
+            cur.execute("EXEC sp_releaseapplock @Resource = %s, @LockOwner = 'Session'", (BOOT_LOCK,))
+        except pymssql.Error as exc:  # the connection is closed next, which releases it too
+            log.warning("could not release the boot lock: %s", exc)
 
 
 def migrate(conn) -> list[str]:
